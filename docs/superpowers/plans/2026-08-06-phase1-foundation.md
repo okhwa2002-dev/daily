@@ -430,7 +430,7 @@ git commit -m "feat: KST 시각 변환 유틸 추가"
 - [ ] **Step 1: 패키지 설치와 설정 파일 생성**
 
 ```bash
-pnpm --filter @daily/api add fastify @fastify/cookie @fastify/rate-limit @fastify/cors pino zod
+pnpm --filter @daily/api add fastify @fastify/cookie @fastify/rate-limit @fastify/cors pino zod dotenv
 pnpm --filter @daily/api add -D @types/node tsx vitest
 ```
 
@@ -552,7 +552,14 @@ Expected: FAIL — `Failed to resolve import "../app.ts"`
 `apps/api/src/env.ts`:
 
 ```ts
+import { fileURLToPath } from 'node:url'
+import { config } from 'dotenv'
 import { z } from 'zod'
+
+// `.env`는 저장소 루트에 있고 커밋하지 않는다. Node는 이 파일을 자동으로 읽지
+// 않으므로 명시적으로 로드한다. 경로를 이 파일 기준으로 잡는 이유는, 실행 위치
+// (루트에서 pnpm -r, apps/api에서 vitest 등)에 따라 cwd가 달라지기 때문이다.
+config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) })
 
 const schema = z.object({
   PORT: z.coerce.number().default(3001),
@@ -704,7 +711,11 @@ await app.listen({ port: env.PORT, host: '0.0.0.0' })
 
 - [ ] **Step 5: 로컬 `.env` 준비 후 테스트 통과 확인**
 
-`.env.example`을 `.env`로 복사하고 `JWT_SECRET`에 32자 이상 임의 값을 넣는다 (`openssl rand -base64 48`).
+저장소 루트의 `.env.example`을 같은 위치의 `.env`로 복사하고 `JWT_SECRET`에 32자 이상 임의 값을 넣는다 (`openssl rand -base64 48`). `.env`는 `.gitignore`에 이미 들어 있으므로 커밋되지 않는다 — **생성한 값을 커밋 메시지나 보고서에 적지 않는다.**
+
+`DATABASE_URL`은 이 태스크에서 연결에 쓰이지 않으므로 `.env.example`의 형식 그대로 두어도 된다. 실제 DB는 Task 4에서 만든다.
+
+vitest는 `NODE_ENV`를 `test`로 자동 설정하므로, 테스트에서는 로거가 silent로 떨어져 출력이 깨끗해야 한다.
 
 Run: `pnpm --filter @daily/api test`
 Expected: PASS — 4 tests

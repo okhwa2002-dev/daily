@@ -34,7 +34,11 @@ Thumbs.db
 # 로컬 개인 설정만 제외한다.
 .claude/settings.local.json
 
-# OMC 세션 데이터 — 세션마다 생기는 로컬 산출물이라 공유 대상이 아니다
-.omc/sessions/
-.omc/state/
-.omc/logs/
+# OMC 로컬 산출물 — 전부 공유 대상이 아니다.
+# project-memory.json은 절대 경로와 파일 접근 타임스탬프를 담은 캐시라
+# 기기마다 다르고 파일을 열 때마다 바뀐다. 공유할 프로젝트 지식은
+# CLAUDE.md와 .claude/roles/에 사람이 읽을 수 있는 형태로 적는다.
+.omc/
+
+# 에이전트 작업 스크래치 (브리프·보고서·리뷰·diff)
+.superpowers/

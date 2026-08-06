@@ -3,7 +3,7 @@
 지출·운동·식사·일기를 기록하는 일일 기록 서비스. 오프라인 입력을 지원하는 모바일 웹 PWA이며, 불특정 다수를 대상으로 하는 공개 서비스다.
 
 - 프론트: React 19 + Vite + Tailwind v4 + Dexie(IndexedDB)
-- 백엔드: Fastify + Drizzle ORM + PostgreSQL 17
+- 백엔드: Fastify + Drizzle ORM + PostgreSQL 18
 - 배포: VPS 직접 운영 (nginx + PM2)
 
 상세 스택과 구조는 [project-structure.md](.claude/roles/project-structure.md) 참고.

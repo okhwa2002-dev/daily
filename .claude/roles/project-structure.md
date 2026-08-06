@@ -18,7 +18,7 @@
 | DB 접근 | Drizzle ORM + drizzle-kit |
 | 검증 | zod (프론트/백엔드 공유) |
 | 로깅 | pino |
-| DB | PostgreSQL 17 |
+| DB | PostgreSQL 18 |
 | 패키지 매니저 | pnpm (workspace) |
 | 배포 | nginx + PM2, VPS 직접 운영 |
 

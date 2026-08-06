@@ -46,7 +46,7 @@
 | DB 접근 | Drizzle ORM + drizzle-kit | SQL에 가까운 표현 + 타입 안전 + 마이그레이션 |
 | 검증 | zod | 프론트/백엔드 공유 |
 | 로깅 | pino | |
-| DB | PostgreSQL 17 | |
+| DB | PostgreSQL 18 | |
 | 메일 | Resend 또는 AWS SES | 자체 SMTP는 스팸 처리되어 사용 불가 |
 | 패키지 | pnpm workspace | |
 | 배포 | nginx + PM2 | 기존 운영 방식과 동일 |
@@ -78,7 +78,7 @@ Redis, 메시지 큐, Docker/K8s 배포, 마이크로서비스, GraphQL, 전용 
                                                   ├─ /        → 정적 SPA 빌드
                                                   └─ /api/*   → Fastify (PM2, :3001)
                                                                      │
-                                                                PostgreSQL 17
+                                                                PostgreSQL 18
 ```
 
 ### 핵심 원칙: UI는 Dexie만 읽는다

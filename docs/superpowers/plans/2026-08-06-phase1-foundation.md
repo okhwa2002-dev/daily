@@ -6,7 +6,7 @@
 
 **Architecture:** pnpm workspace 아래 `apps/web`(Vite React PWA), `apps/api`(Fastify), `packages/shared`(zod 스키마·코드값·날짜 유틸)를 둔다. 인증은 메모리 액세스 토큰 + httpOnly 쿠키 리프레시 토큰 구조이며, 리프레시는 사용할 때마다 로테이션되고 재사용이 탐지되면 세션 전체를 무효화한다. 프론트는 이 단계에서 Dexie 스키마와 아웃박스 테이블 정의까지만 만들고, 동기화 엔진은 2단계에서 붙인다.
 
-**Tech Stack:** Node 22 LTS, TypeScript, Fastify 5, Drizzle ORM, PostgreSQL 17, argon2, jose, Vite, React 19, Tailwind CSS v4, Dexie, Zustand, Vitest
+**Tech Stack:** Node 22 LTS, TypeScript, Fastify 5, Drizzle ORM, PostgreSQL 18, argon2, jose, Vite, React 19, Tailwind CSS v4, Dexie, Zustand, Vitest
 
 **설계 문서:** [2026-08-06-daily-tracker-design.md](../specs/2026-08-06-daily-tracker-design.md)
 
@@ -2780,7 +2780,7 @@ server {
 
 ## 사전 준비
 
-- Node 22 LTS, pnpm, PostgreSQL 17, nginx, certbot, PM2
+- Node 22 LTS, pnpm, PostgreSQL 18, nginx, certbot, PM2
 - `daily` 데이터베이스 생성
 - 서버에 `.env` 작성 (`.env.example` 참고). **저장소에 커밋하지 않는다.**
 

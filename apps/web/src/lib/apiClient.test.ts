@@ -61,4 +61,24 @@ describe('apiFetch', () => {
     expect(res.status).toBe(401)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('로그인 실패는 refresh를 시도하지 않는다', async () => {
+    fetchMock.mockResolvedValueOnce(unauthorized())
+
+    const res = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'a@b.c', password: '틀린 비밀번호입니다' }),
+    })
+
+    expect(res.status).toBe(401)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('회원가입 실패도 refresh를 시도하지 않는다', async () => {
+    fetchMock.mockResolvedValueOnce(unauthorized())
+
+    await apiFetch('/auth/register', { method: 'POST', body: '{}' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

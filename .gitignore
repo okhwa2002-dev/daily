@@ -1,0 +1,38 @@
+# 환경변수 — 실제 값은 절대 커밋하지 않는다
+.env
+.env.*
+!.env.example
+
+# 의존성
+node_modules/
+.pnpm-store/
+
+# 빌드 산출물
+dist/
+build/
+*.tsbuildinfo
+
+# 테스트
+coverage/
+playwright-report/
+test-results/
+
+# 로그
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 에디터 / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Claude Code — 규칙 문서(.claude/roles/)는 커밋 대상이다.
+# 로컬 개인 설정만 제외한다.
+.claude/settings.local.json
+
+# OMC 세션 데이터
+.omc/sessions/

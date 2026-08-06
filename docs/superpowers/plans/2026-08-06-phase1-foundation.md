@@ -2294,10 +2294,30 @@ describe('apiFetch', () => {
     expect(res.status).toBe(401)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('로그인 실패는 refresh를 시도하지 않는다', async () => {
+    fetchMock.mockResolvedValueOnce(unauthorized())
+
+    const res = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'a@b.c', password: '틀린 비밀번호입니다' }),
+    })
+
+    expect(res.status).toBe(401)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('회원가입 실패도 refresh를 시도하지 않는다', async () => {
+    fetchMock.mockResolvedValueOnce(unauthorized())
+
+    await apiFetch('/auth/register', { method: 'POST', body: '{}' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
 ```
 
-마지막 테스트가 **무한 재귀를 막는다.** refresh 요청이 401을 받았을 때 다시 refresh를 부르면 스택이 터진다.
+마지막 세 테스트가 **인증 전 요청에 refresh가 끼어드는 것을 막는다.** 로그인 401은 "자격증명이 틀렸다"는 뜻인데 여기서 refresh를 시도하면, 같은 기기에 다른 계정의 리프레시 쿠키가 남아 있을 때 그 세션의 토큰이 조용히 들어앉는다. 화면은 로그인 실패인데 `apiClient`만 남의 토큰을 들고 있게 되고, 이후 요청이 전부 그 토큰으로 나간다.
 
 `apps/web/src/pages/LoginPage.test.tsx`:
 
@@ -2385,11 +2405,25 @@ async function refresh(): Promise<boolean> {
   return true
 }
 
+/**
+ * 인증 전 요청. 401이 나도 refresh를 시도하지 않는다.
+ * 쿼리스트링이 붙을 수 있으므로 경로만 잘라서 정확히 비교한다.
+ */
+const PRE_AUTH_PATHS = new Set(['/auth/login', '/auth/register', '/auth/refresh'])
+
+function pathnameOf(path: string): string {
+  const q = path.indexOf('?')
+  return q === -1 ? path : path.slice(0, q)
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, withAuth(init))
 
-  // refresh 요청 자체는 재시도하지 않는다. 재귀에 빠진다.
-  if (res.status !== 401 || path.startsWith('/auth/refresh')) return res
+  // 인증 전 요청의 401은 "자격증명이 틀렸다"는 뜻이지 "토큰이 만료됐다"가 아니다.
+  // 여기서 refresh를 시도하면, 같은 기기에 다른 계정의 리프레시 쿠키가 살아 있을 때
+  // 그 세션의 액세스 토큰이 조용히 들어앉는다. 화면은 로그인 실패로 보이는데
+  // apiClient만 남의 세션 토큰을 들고 있는 상태가 되고, 이후 요청이 그 토큰으로 나간다.
+  if (res.status !== 401 || PRE_AUTH_PATHS.has(pathnameOf(path))) return res
 
   if (!(await refresh())) return res
   return fetch(`${BASE}${path}`, withAuth(init))

@@ -431,7 +431,7 @@ git commit -m "feat: KST 시각 변환 유틸 추가"
 
 ```bash
 pnpm --filter @daily/api add fastify @fastify/cookie @fastify/rate-limit @fastify/cors pino zod dotenv
-pnpm --filter @daily/api add -D @types/node tsx vitest
+pnpm --filter @daily/api add -D @types/node@^22 tsx vitest
 ```
 
 `apps/api/package.json`:

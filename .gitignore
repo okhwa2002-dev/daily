@@ -34,5 +34,7 @@ Thumbs.db
 # 로컬 개인 설정만 제외한다.
 .claude/settings.local.json
 
-# OMC 세션 데이터
+# OMC 세션 데이터 — 세션마다 생기는 로컬 산출물이라 공유 대상이 아니다
 .omc/sessions/
+.omc/state/
+.omc/logs/

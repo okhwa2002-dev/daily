@@ -145,6 +145,7 @@ packages:
     "strict": true,
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "declaration": true,
@@ -202,6 +203,8 @@ COOKIE_SECURE=false
   "include": ["src"]
 }
 ```
+
+`allowImportingTsExtensions`가 필요한 이유: 이 계획의 모든 import는 `./codes.ts`처럼 확장자를 명시한다(ESM 해석 규칙과 tsx/Vite 양쪽에서 동작하는 형태). 이 플래그가 없으면 `tsc`가 `TS5097`로 거부한다. 플래그는 `noEmit` 또는 `emitDeclarationOnly`를 요구하므로 각 패키지 tsconfig가 `noEmit: true`를 켠다.
 
 - [ ] **Step 2: 실패하는 테스트 작성**
 
@@ -297,9 +300,11 @@ Expected: PASS — 3 tests
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add pnpm-workspace.yaml package.json tsconfig.base.json .env.example packages/
+git add pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json .env.example packages/
 git commit -m "feat: pnpm 워크스페이스 구성과 코드값 정의"
 ```
+
+`pnpm-lock.yaml`을 반드시 커밋한다. 배포 절차가 `pnpm install --frozen-lockfile`을 쓰므로 락파일이 없으면 배포가 실패하고, 태스크마다 의존성 버전이 달라진다.
 
 ---
 

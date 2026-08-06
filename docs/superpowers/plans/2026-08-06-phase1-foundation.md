@@ -1955,7 +1955,7 @@ git commit -m "feat: 인증 미들웨어와 rate limit"
 
 **Interfaces:**
 - Consumes: `@daily/shared` 코드값·타입
-- Produces: `db` (Dexie 인스턴스), 타입 `OutboxRow { seq?: number; table: string; clientUuid: string; op: OutboxOp; payload: unknown; updatedAt: string; tryCount: number; lastError: string | null; queuedAt: string }`, `MetaRow { key: string; value: string }`
+- Produces: `db` (Dexie 인스턴스), 타입 `OutboxRow { seq: number; table: string; clientUuid: string; op: OutboxOp; payload: unknown; updatedAt: string; tryCount: number; lastError: string | null; queuedAt: string }`, `MetaRow { key: string; value: string }`
 
 이 태스크에서는 **Dexie 스키마와 아웃박스 테이블만 만든다.** 동기화 엔진과 도메인 테이블은 2단계에서 붙인다.
 
@@ -2128,7 +2128,14 @@ import Dexie, { type EntityTable } from 'dexie'
 import type { OutboxOp } from '@daily/shared'
 
 export interface OutboxRow {
-  seq?: number
+  /**
+   * 자동 증가 기본키. **옵셔널로 선언하지 않는다.**
+   * Dexie의 `EntityTable<T, 'seq'>`는 키 타입을 `T['seq']`에서 뽑으므로,
+   * `seq?: number`로 두면 `add()`의 반환 타입이 `number | undefined`가 된다.
+   * 필수로 선언해도 `InsertType`이 삽입 시점에만 옵셔널로 바꿔주므로
+   * `add({ ... })`에서 `seq`를 생략하는 코드는 그대로 컴파일된다.
+   */
+  seq: number
   /** 서버 테이블명 (예: 'expenses') */
   table: string
   clientUuid: string

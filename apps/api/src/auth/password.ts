@@ -32,10 +32,9 @@ export async function hashPassword(pw: string): Promise<string> {
 }
 
 export async function verifyPassword(hash: string, pw: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, pw)
-  } catch {
-    // 해시 형식이 깨진 경우 — 검증 실패로 처리하고 예외를 밖으로 내보내지 않는다.
-    return false
-  }
+  // 예외를 삼키지 않는다. argon2.verify가 던지는 경우는 저장된 해시가 깨졌거나
+  // 네이티브 바인딩이 실패한 때뿐이고, 둘 다 "비밀번호가 틀렸다"가 아니라
+  // 서버 장애다. false로 뭉개면 운영자는 사용자의 오타와 데이터 손상을
+  // 구분할 수 없다. 전역 에러 핸들러가 500으로 변환하고 전문을 로깅한다.
+  return argon2.verify(hash, pw)
 }

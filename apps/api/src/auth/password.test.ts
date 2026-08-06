@@ -43,4 +43,8 @@ describe('해싱', () => {
     expect(await verifyPassword(hash, '나의 긴 비밀번호 문장')).toBe(true)
     expect(await verifyPassword(hash, '틀린 비밀번호 문장입니다')).toBe(false)
   })
+
+  it('저장된 해시가 깨졌으면 예외를 그대로 던진다', async () => {
+    await expect(verifyPassword('not-a-valid-hash', '나의 긴 비밀번호 문장')).rejects.toThrow()
+  })
 })

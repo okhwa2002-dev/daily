@@ -1,10 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { OutboxOp } from '@daily/shared'
+import type { ExpenseKind, OutboxOp, SyncTable } from '@daily/shared'
 
 export interface OutboxRow {
   seq: number
   /** 서버 테이블명 (예: 'expenses') */
-  table: string
+  table: SyncTable
   clientUuid: string
   op: OutboxOp
   payload: unknown
@@ -20,18 +20,81 @@ export interface MetaRow {
   value: string
 }
 
+/**
+ * 서버가 영구 거부한 변경.
+ *
+ * 큐에서 빼되 버리지는 않는다. 조용히 버리면 사용자는 기록이 사라진 것을
+ * 한참 뒤에 발견한다. 반대로 무한 재시도하면 큐가 그 항목에서 영영 막힌다.
+ */
+export interface SyncFailureRow {
+  id: number
+  table: SyncTable
+  clientUuid: string
+  op: OutboxOp
+  payload: unknown
+  reason: string
+  failedAt: string
+}
+
+/** 도메인 레코드가 공통으로 갖는 로컬 컬럼. */
+interface LocalRecord {
+  /** 로컬 기본키이자 동기화 식별자. 오프라인에서 만든다 */
+  clientUuid: string
+  userId: number
+  /** 서버가 채번한 id. 아직 서버가 모르는 레코드면 null */
+  serverId: number | null
+  /** KST 벽시계 문자열. LWW 판정 기준 */
+  updatedAt: string
+  /** null이 아니면 툼스톤 */
+  deletedAt: string | null
+}
+
+export interface LocalExpenseCategory extends LocalRecord {
+  name: string
+}
+
+export interface LocalExpense extends LocalRecord {
+  occurredOn: string
+  kind: ExpenseKind
+  /** 금액은 문자열로 다룬다. 부동소수점 연산을 거치지 않는다 */
+  amount: string
+  categoryClientUuid: string | null
+  memo: string | null
+}
+
 class DailyDb extends Dexie {
   outbox!: EntityTable<OutboxRow, 'seq'>
   meta!: EntityTable<MetaRow, 'key'>
+  expenses!: EntityTable<LocalExpense, 'clientUuid'>
+  expenseCategories!: EntityTable<LocalExpenseCategory, 'clientUuid'>
+  syncFailures!: EntityTable<SyncFailureRow, 'id'>
 
   constructor() {
     super('daily')
-    // 도메인 테이블은 2단계에서 버전 2로 추가한다.
     this.version(1).stores({
       outbox: '++seq, clientUuid, table',
       meta: 'key',
+    })
+    // IndexedDB는 null을 키로 쓰지 못한다. deletedAt이나 categoryClientUuid를
+    // 인덱스에 넣으면 값이 null인 레코드가 인덱스에서 통째로 빠져 조회에
+    // 잡히지 않는다 — 살아있는 레코드가 사라지는 형태로 드러난다.
+    // 그래서 이 둘은 인덱스에 넣지 않고 JS에서 거른다.
+    this.version(2).stores({
+      expenses: 'clientUuid, userId, [userId+occurredOn]',
+      expenseCategories: 'clientUuid, userId',
+      syncFailures: '++id, clientUuid',
     })
   }
 }
 
 export const db = new DailyDb()
+
+/** 동기화 커서와 사용자 식별자를 담는 meta 키. */
+export const META_KEY = {
+  lastPulledSyncedAt: 'lastPulledSyncedAt',
+  lastPulledId: 'lastPulledId',
+  /** 로컬 데이터의 주인. 다른 계정으로 로그인하면 로컬을 비운다 */
+  userId: 'userId',
+  /** 초기 동기화가 끝났는지 */
+  initialSyncDone: 'initialSyncDone',
+} as const

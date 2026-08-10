@@ -1285,7 +1285,7 @@ Expected: FAIL — `Failed to resolve import "./tokens.ts"`
 ```ts
 import { createHash, randomBytes } from 'node:crypto'
 import { SignJWT, jwtVerify } from 'jose'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { toKstTimestamp } from '@daily/shared'
 import { db } from '../db/pool.ts'
 import { refreshTokens } from '../db/schema.ts'
@@ -1344,7 +1344,9 @@ export async function issueRefreshToken(userId: number): Promise<string> {
 async function revokeAllForUser(userId: number): Promise<void> {
   const now = dbNow()
   await db.update(refreshTokens)
-    .set({ revokedAt: now, updatedAt: now, updatedBy: userId })
+    // 재사용 탐지에 의한 강제 폐기는 시스템 행위다. sentinel 0을 남겨
+    // 사용자가 스스로 로그아웃한 경우와 구분한다.
+    .set({ revokedAt: now, revokedBy: 0, updatedAt: now, updatedBy: userId })
     .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)))
 }
 
@@ -1375,7 +1377,11 @@ export async function rotateRefreshToken(
     .where(eq(refreshTokens.tokenHash, hashToken(next)))
 
   await db.update(refreshTokens)
-    .set({ revokedAt: now, replacedBy: nextRow?.id ?? null, updatedAt: now, updatedBy: row.userId })
+    .set({
+      revokedAt: now, revokedBy: row.userId,
+      replacedBy: nextRow?.id ?? null,
+      updatedAt: now, updatedBy: row.userId,
+    })
     .where(eq(refreshTokens.id, row.id))
 
   return { userId: row.userId, token: next }
@@ -1384,7 +1390,11 @@ export async function rotateRefreshToken(
 export async function revokeRefreshToken(raw: string): Promise<void> {
   const now = dbNow()
   await db.update(refreshTokens)
-    .set({ revokedAt: now, updatedAt: now, updatedBy: 0 })
+    // 로그아웃은 토큰 주인의 행위이므로 그 행의 user_id를 그대로 행위자로 남긴다.
+    .set({
+      revokedAt: now, revokedBy: sql`${refreshTokens.userId}`,
+      updatedAt: now, updatedBy: sql`${refreshTokens.userId}`,
+    })
     .where(and(
       eq(refreshTokens.tokenHash, hashToken(raw)),
       isNull(refreshTokens.revokedAt),

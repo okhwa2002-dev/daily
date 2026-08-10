@@ -8,6 +8,17 @@ import { resetDb } from './testing.ts'
 beforeEach(async () => { await resetDb() })
 afterAll(async () => { await pool.end() })
 
+/**
+ * PostgreSQL은 timestamp를 텍스트로 낼 때 소수점 이하 초의 뒤따르는 0을
+ * 잘라낸다(`.100` -> `.1`, `.000` -> 점 없음). dbNow()는 항상 3자리
+ * 밀리초를 채워 넣으므로, 저장한 원문과 비교하려면 이 잘림을 되돌려야 한다.
+ */
+function normalizeMillis(s: string | undefined): string {
+  if (!s) return ''
+  const [head, frac] = s.split('.')
+  return frac === undefined ? `${head}.000` : `${head}.${frac.padEnd(3, '0')}`
+}
+
 describe('users 테이블', () => {
   it('사용자를 저장하고 조회한다', async () => {
     const now = dbNow()
@@ -40,6 +51,11 @@ describe('users 테이블', () => {
     expect(row?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/)
     expect(row?.createdAt).not.toContain('Z')
     expect(row?.createdAt).not.toContain('+')
+    // 값 자체가 왕복해야 한다 — 형태만 맞고 시각이 9시간 밀리는 회귀를 잡는다.
+    // PostgreSQL은 소수점 이하 초의 뒤따르는 0을 잘라서 돌려준다
+    // (예: '.100' -> '.1', '.000' -> 점 자체가 없음)이므로, 원문과 완전히
+    // 같은 문자열이 아니라 밀리초 자릿수를 3자리로 되돌린 값으로 비교한다.
+    expect(normalizeMillis(row?.createdAt)).toBe(now)
   })
 
   it('이메일은 중복될 수 없다', async () => {

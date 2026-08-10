@@ -8,10 +8,12 @@ import * as schema from './schema.ts'
 pg.types.setTypeParser(1114, (v: string) => v)
 pg.types.setTypeParser(1082, (v: string) => v)
 
-const connectionString =
-  env.NODE_ENV === 'test'
-    ? (process.env.DATABASE_URL_TEST ?? env.DATABASE_URL)
-    : env.DATABASE_URL
+// 테스트에서는 반드시 테스트 DB로만 붙는다. 폴백을 두지 않는 이유:
+// Vitest가 NODE_ENV=test를 자동 설정하므로, DATABASE_URL_TEST가 비어 있을 때
+// 개발 DB로 흘러가면 resetDb()의 TRUNCATE가 개발 데이터를 날린다.
+// env 스키마가 test 환경에서 이 값을 필수로 강제하므로 여기서는 단정해도 된다.
+export const connectionString =
+  env.NODE_ENV === 'test' ? env.DATABASE_URL_TEST! : env.DATABASE_URL
 
 export const pool = new pg.Pool({ connectionString, max: 10 })
 export const db = drizzle(pool, { schema })

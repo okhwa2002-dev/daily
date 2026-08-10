@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import { env } from './env.ts'
+import { AppError } from './errors.ts'
 import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
 import { authRoutes } from './routes/auth.ts'
@@ -27,6 +28,17 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: env.NODE_ENV === 'test' ? 10_000 : 300,
     timeWindow: '1 minute',
+    // 기본 errorResponseBuilder는 `{statusCode, error, message}` 모양의 일반
+    // Error를 던진다. 이 프로젝트의 전역 에러 핸들러는 AppError만 표준 계약
+    // (`{ error: { code, message, requestId } }`)으로 변환하므로, 일반 Error나
+    // 평범한 객체는 catch-all 500 분기로 떨어져 429가 500으로 둔갑한다.
+    // AppError를 직접 던지면 기존 핸들러 분기를 그대로 타고 429 상태와
+    // 표준 계약을 함께 얻는다.
+    errorResponseBuilder: (req, context) => new AppError(
+      429,
+      'RATE_LIMITED',
+      `요청이 너무 많습니다. ${context.after} 후에 다시 시도해주세요.`,
+    ),
   })
   registerErrorHandler(app)
   await app.register(healthRoutes, { prefix: '/api' })

@@ -10,6 +10,9 @@ let app: FastifyInstance
 beforeAll(async () => {
   app = await buildApp()
   app.get('/protected', { preHandler: requireAuth }, async (req) => ({ userId: req.userId }))
+  app.get('/rate-limited', {
+    config: { rateLimit: { max: 1, timeWindow: '1 minute' } },
+  }, async () => ({ ok: true }))
   await app.ready()
 })
 
@@ -46,5 +49,15 @@ describe('requireAuth', () => {
       headers: { authorization: 'Bearer 아무렇게나.만든.토큰' },
     })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('rate limit에 걸려도 에러 응답 형식이 같다', async () => {
+    const first = await app.inject({ method: 'GET', url: '/rate-limited' })
+    expect(first.statusCode).toBe(200)
+
+    const second = await app.inject({ method: 'GET', url: '/rate-limited' })
+    expect(second.statusCode).toBe(429)
+    expect(second.json().error.code).toBe('RATE_LIMITED')
+    expect(second.json().error.requestId).toBeTruthy()
   })
 })

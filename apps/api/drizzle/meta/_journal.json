@@ -8,6 +8,13 @@
       "when": 1786326422486,
       "tag": "0000_clammy_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786342331487,
+      "tag": "0001_chunky_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

@@ -12,8 +12,16 @@ export async function resetDb(): Promise<void> {
   if (connectionString === env.DATABASE_URL) {
     throw new Error('resetDb가 개발 DB를 가리키고 있습니다. DATABASE_URL_TEST를 확인하세요.')
   }
-  await db.execute(sql`
-    TRUNCATE TABLE login_attempts, password_reset_tokens, refresh_tokens, users
-    RESTART IDENTITY CASCADE
+  // 테이블 목록을 손으로 관리하면 새 테이블을 추가할 때마다 빠뜨리고,
+  // 그 누락은 "테스트가 가끔 실패한다"는 형태로만 드러난다. 카탈로그에서 읽는다.
+  // drizzle 마이그레이션 기록은 별도 스키마(drizzle)에 있어 여기 걸리지 않는다.
+  const { rows } = await db.execute<{ tables: string | null }>(sql`
+    SELECT string_agg(quote_ident(tablename), ', ') AS tables
+      FROM pg_tables
+     WHERE schemaname = 'public'
   `)
+  const tables = rows[0]?.tables
+  if (!tables) return
+
+  await db.execute(sql.raw(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`))
 }

@@ -29,7 +29,7 @@ PostgreSQL 18. 마이그레이션은 drizzle-kit으로 관리하며, 모든 마�
 
 기록 테이블은 위에 더해 `occurred_on DATE NOT NULL`(기록 대상 날짜)을 갖는다.
 
-**예외**: `books`는 특정 날짜의 기록이 아니라 마스터 데이터이므로 `occurred_on`이 없다. 공통 컬럼은 그대로 갖는다.
+**예외**: 마스터 데이터 테이블(`books`, `expense_categories`)은 특정 날짜의 기록이 아니므로 `occurred_on`이 없다. 공통 컬럼은 그대로 갖는다.
 
 ---
 

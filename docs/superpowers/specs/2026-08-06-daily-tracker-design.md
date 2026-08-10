@@ -147,7 +147,7 @@ daily/
 
 **`_at` 컬럼을 만들면 짝이 되는 `_by`를 반드시 함께 만들고 해당 사용자 ID를 넣는다.**
 
-`books`는 특정 날짜의 기록이 아닌 마스터 데이터이므로 `occurred_on`이 없다. 이것이 유일한 예외다.
+마스터 데이터 테이블(`books`, `expense_categories`)은 특정 날짜의 기록이 아니므로 `occurred_on`이 없다. 이 둘이 유일한 예외다.
 
 ### id와 client_uuid의 역할 분리
 
@@ -176,8 +176,9 @@ daily/
 | 컬럼 | 타입 |
 |---|---|
 | `kind` | `TEXT` — `INCOME` \| `EXPENSE` |
-| `amount` | `NUMERIC(12,2)` |
-| `category_id` | `BIGINT` → `expense_categories` |
+| `amount` | `NUMERIC(12,2)` — 부호는 `kind`가 가지므로 음수를 허용하지 않는다 |
+| `category_id` | `BIGINT NULL` → `expense_categories`. 미분류면 NULL |
+| `category_client_uuid` | `UUID NULL` — 동기화용 부모 참조 (아래 "부모-자식 동기화") |
 | `memo` | `TEXT NULL` |
 
 **`workouts`** — 하루 여러 건
@@ -241,7 +242,9 @@ daily/
 
 페이지 진도율·독서 시간·별점은 범위에서 제외한다.
 
-**`expense_categories`** — 사용자 정의. 가입 시 기본 세트(식비/교통/생활/여가/기타) 자동 생성
+**`expense_categories`** — 사용자 정의. 가입 시 기본 세트(식비/교통/생활/여가/기타) 자동 생성. `occurred_on` 없음
+
+`name`에는 유니크 제약을 걸지 않는다. 두 기기에서 오프라인으로 같은 이름을 만들면 서로 다른 `client_uuid`로 올라와 제약 위반이 되고, 그 실패는 400(영구 실패)이라 사용자 입력이 버려진다. 중복 이름은 화면에서 다룬다.
 
 **계정 테이블**
 
@@ -358,6 +361,10 @@ ON CONFLICT (user_id, client_uuid) DO UPDATE
 ```
 
 부모 없음은 "영구 실패"가 아니라 "아직 이르다"로 다룬다. 실패로 처리해 큐에서 제거하면 감상평이 영구 소실된다.
+
+지출 → 카테고리도 같은 구조다. `expenses.category_client_uuid`로 `expense_categories`를 조회해 `category_id`를 확정한다. 다만 카테고리는 선택 항목이라 `category_client_uuid`가 NULL이면 미분류로 저장하고, 값이 있는데 부모를 못 찾을 때만 409다.
+
+FK는 부모의 **존재**만 보장한다. 부모가 같은 사용자의 것인지는 검사하지 않으므로, 부모 조회에는 반드시 `user_id` 조건을 함께 건다.
 
 ### 재시도
 

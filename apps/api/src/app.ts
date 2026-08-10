@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify'
 import cookie from '@fastify/cookie'
+import rateLimit from '@fastify/rate-limit'
 import { env } from './env.ts'
 import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
@@ -21,6 +22,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   })
 
   await app.register(cookie)
+  // 테스트에서는 상한을 사실상 무제한에 가깝게 두어 순서 의존적인
+  // 산발적 실패를 막는다. 실제 상한은 운영 환경에서만 적용된다.
+  await app.register(rateLimit, {
+    max: env.NODE_ENV === 'test' ? 10_000 : 300,
+    timeWindow: '1 minute',
+  })
   registerErrorHandler(app)
   await app.register(healthRoutes, { prefix: '/api' })
   await app.register(authRoutes, { prefix: '/api' })

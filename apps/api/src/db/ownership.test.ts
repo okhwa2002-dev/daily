@@ -4,7 +4,7 @@ import { db, pool } from './pool.ts'
 import { expenses, users } from './schema.ts'
 import { liveOwnedBy, ownedBy } from './ownership.ts'
 import { dbNow } from './time.ts'
-import { resetDb } from './testing.ts'
+import { resetDb, testLoginId } from './testing.ts'
 
 beforeEach(async () => { await resetDb() })
 afterAll(async () => { await pool.end() })
@@ -15,7 +15,7 @@ const UUID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0
 async function makeUser(email: string): Promise<number> {
   const now = dbNow()
   const [row] = await db.insert(users).values({
-    email, passwordHash: 'h', status: 'ACTIVE',
+    loginId: testLoginId(email), email, passwordHash: 'h', status: 'ACTIVE',
     createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,
   }).returning()
   return row!.id

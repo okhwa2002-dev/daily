@@ -23,6 +23,7 @@ describe('users 테이블', () => {
   it('사용자를 저장하고 조회한다', async () => {
     const now = dbNow()
     const [inserted] = await db.insert(users).values({
+      loginId: 'auser',
       email: 'a@example.com',
       passwordHash: 'hash',
       status: 'ACTIVE',
@@ -42,7 +43,7 @@ describe('users 테이블', () => {
   it('시각 컬럼은 KST 벽시계 문자열로 저장된다', async () => {
     const now = dbNow()
     await db.insert(users).values({
-      email: 'b@example.com', passwordHash: 'h', status: 'ACTIVE',
+      loginId: 'buser', email: 'b@example.com', passwordHash: 'h', status: 'ACTIVE',
       createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,
     })
 
@@ -61,7 +62,7 @@ describe('users 테이블', () => {
   it('이메일은 중복될 수 없다', async () => {
     const now = dbNow()
     const values = {
-      email: 'dup@example.com', passwordHash: 'h', status: 'ACTIVE' as const,
+      loginId: 'dupuser', email: 'dup@example.com', passwordHash: 'h', status: 'ACTIVE' as const,
       createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,
     }
     await db.insert(users).values(values)

@@ -6,7 +6,7 @@ import { buildApp } from '../app.ts'
 import { db, pool } from '../db/pool.ts'
 import { expenseCategories, expenses, users } from '../db/schema.ts'
 import { dbNow, padMillis } from '../db/time.ts'
-import { resetDb } from '../db/testing.ts'
+import { resetDb, testLoginId } from '../db/testing.ts'
 import { issueAccessToken } from '../auth/tokens.ts'
 
 let app: FastifyInstance
@@ -20,7 +20,7 @@ const FROM_START = { since: '1970-01-01 00:00:00.000', sinceId: 0 }
 async function makeUser(email: string): Promise<number> {
   const now = dbNow()
   const [row] = await db.insert(users).values({
-    email, passwordHash: 'h', status: 'ACTIVE',
+    loginId: testLoginId(email), email, passwordHash: 'h', status: 'ACTIVE',
     createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,
   }).returning()
   return row!.id

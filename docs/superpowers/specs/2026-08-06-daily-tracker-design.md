@@ -16,7 +16,7 @@
 | 형태 | 모바일 웹 PWA (설치 가능) |
 | 대상 | 불특정 다수 (공개 서비스) |
 | 오프라인 | 오프라인 입력 후 동기화 |
-| 인증 | 이메일 + 비밀번호 자체 구현 |
+| 인증 | 아이디(`login_id`) + 비밀번호 자체 구현. 이메일은 계정 복구용으로 필수 수집 |
 | 인프라 | VPS 직접 운영 (nginx + PM2) |
 | 초기 규모 | 수십~수백 명 (검증 단계) |
 
@@ -248,10 +248,10 @@ daily/
 
 **계정 테이블**
 
-- `users` — `email`, `password_hash`, `email_verified_at`, `status`(`ACTIVE` / `SUSPENDED` / `PENDING_DELETION`), `deletion_requested_at`
+- `users` — `login_id`(로그인 식별자), `email`(복구용), `password_hash`, `email_verified_at`, `status`(`ACTIVE` / `SUSPENDED` / `PENDING_DELETION`), `deletion_requested_at`
 - `refresh_tokens` — 토큰 해시, 만료, 폐기 여부, 로테이션 체인
 - `password_reset_tokens` — 토큰 해시, 만료, 사용 여부
-- `login_attempts` — 이메일, IP, 성공 여부, 시각
+- `login_attempts` — 아이디, IP, 성공 여부, 시각
 
 ### 소프트 삭제
 
@@ -418,7 +418,7 @@ nginx가 같은 도메인에서 `/`와 `/api`를 서빙하므로 쿠키를 사�
 
 ### 로그인 실패 대응
 
-**계정 잠금은 사용하지 않는다.** 공격자가 남의 이메일로 일부러 실패시켜 계정을 잠글 수 있어, 방어가 아니라 서비스 거부 수단이 된다.
+**계정 잠금은 사용하지 않는다.** 공격자가 남의 아이디로 일부러 실패시켜 계정을 잠글 수 있어, 방어가 아니라 서비스 거부 수단이 된다.
 
 대신 IP 기준 rate limit + 계정 기준 지수 지연(1s → 2s → 4s …)을 적용하고, 모든 시도를 `login_attempts`에 기록한다.
 
@@ -435,6 +435,8 @@ nginx가 같은 도메인에서 `/`와 `/api`를 서빙하므로 쿠키를 사�
 - 1회용 토큰, 30분 만료, 사용 즉시 폐기
 - 토큰은 DB에 해시로 저장한다 (DB 유출 시에도 재설정 불가)
 - **이메일 존재 여부를 응답으로 구분하지 않는다.** 항상 동일한 응답을 반환한다. 구분하면 가입자 이메일 목록을 만들 수 있다
+
+> **아이디 열거는 구조적으로 허용된다.** 가입 화면이 "이미 사용 중인 아이디입니다"를 알려주지 않으면 가입 자체가 불가능하기 때문이다. 로그인 응답은 계속 계정 존재 여부를 구분하지 않는다 — 그 경로는 비밀번호까지 맞혀야 하므로 방어할 가치가 남아 있다.
 - 재설정 성공 시 기존 리프레시 토큰 전량 폐기
 
 ### 로그아웃과 로컬 데이터
@@ -461,8 +463,8 @@ nginx가 같은 도메인에서 `/`와 `/api`를 서빙하므로 쿠키를 사�
 ### 엔드포인트
 
 ```
-POST   /api/auth/register        이메일, 비밀번호
-POST   /api/auth/login           → 액세스 토큰 + 리프레시 쿠키
+POST   /api/auth/register        아이디, 이메일, 비밀번호
+POST   /api/auth/login           아이디, 비밀번호 → 액세스 토큰 + 리프레시 쿠키
 POST   /api/auth/refresh         쿠키로 재발급 (로테이션)
 POST   /api/auth/logout          현재 리프레시 토큰 폐기
 POST   /api/auth/password/forgot 재설정 메일 요청

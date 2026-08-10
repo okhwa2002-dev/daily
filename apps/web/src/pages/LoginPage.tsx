@@ -4,7 +4,7 @@ import { useSession } from '../store/session.ts'
 
 export default function LoginPage() {
   const login = useSession((s) => s.login)
-  const [email, setEmail] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -14,7 +14,7 @@ export default function LoginPage() {
     setError(null)
     setPending(true)
     try {
-      await login(email, password)
+      await login(loginId, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
     } finally {
@@ -28,10 +28,13 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-600">이메일</span>
+          <span className="text-sm text-gray-600">아이디</span>
           <input
-            type="email" value={email} required autoComplete="email"
-            onChange={(e) => setEmail(e.target.value)}
+            type="text" value={loginId} required autoComplete="username"
+            // 모바일 키보드가 첫 글자를 대문자로 바꾸거나 자동 수정하면
+            // 사용자가 입력한 적 없는 아이디로 로그인을 시도하게 된다.
+            autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            onChange={(e) => setLoginId(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2"
           />
         </label>

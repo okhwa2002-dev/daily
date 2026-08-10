@@ -5,7 +5,7 @@ import { buildApp } from '../app.ts'
 import { db, pool } from '../db/pool.ts'
 import { users } from '../db/schema.ts'
 import { dbNow } from '../db/time.ts'
-import { resetDb } from '../db/testing.ts'
+import { resetDb, testLoginId } from '../db/testing.ts'
 import { issueAccessToken } from '../auth/tokens.ts'
 import { requireAuth } from './require-auth.ts'
 
@@ -20,7 +20,7 @@ async function makeUser(
 ): Promise<number> {
   const now = dbNow()
   const [row] = await db.insert(users).values({
-    email, passwordHash: 'h', status,
+    loginId: testLoginId(email), email, passwordHash: 'h', status,
     deletedAt: deleted ? now : null,
     deletedBy: deleted ? 0 : null,
     createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,

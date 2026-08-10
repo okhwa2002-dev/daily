@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db, pool } from '../db/pool.ts'
 import { refreshTokens, users } from '../db/schema.ts'
 import { dbNow } from '../db/time.ts'
-import { resetDb } from '../db/testing.ts'
+import { resetDb, testLoginId } from '../db/testing.ts'
 import { AppError } from '../errors.ts'
 import {
   issueAccessToken, issueRefreshToken, revokeRefreshToken,
@@ -14,7 +14,7 @@ import {
 async function createUser(email: string): Promise<number> {
   const now = dbNow()
   const [row] = await db.insert(users).values({
-    email, passwordHash: 'h', status: 'ACTIVE',
+    loginId: testLoginId(email), email, passwordHash: 'h', status: 'ACTIVE',
     createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0,
   }).returning()
   return row!.id

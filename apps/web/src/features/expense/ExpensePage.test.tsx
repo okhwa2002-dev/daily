@@ -8,7 +8,7 @@ import { useSync } from '../../store/sync.ts'
 import ExpensePage from './ExpensePage.tsx'
 import { DEFAULT_CATEGORY_NAMES } from './repository.ts'
 
-const USER = { id: 1, email: 'a@example.com' }
+const USER = { id: 1, loginId: 'auser', email: 'a@example.com' }
 const TODAY = kstDate(new Date())
 
 const syncSoon = vi.fn()

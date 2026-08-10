@@ -2,6 +2,17 @@ import { sql } from 'drizzle-orm'
 import { db, connectionString } from './pool.ts'
 import { env } from '../env.ts'
 
+/**
+ * 테스트용 login_id를 이메일에서 만든다.
+ *
+ * `users_login_id_ck`가 소문자·숫자·밑줄 4~20자를 요구하므로, 'a@example.com'
+ * 같은 짧은 로컬 파트는 그대로 쓰면 제약에 걸린다. 길이를 맞춰 채운다.
+ */
+export function testLoginId(email: string): string {
+  const local = (email.split('@')[0] ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '')
+  return local.padEnd(4, '0').slice(0, 20)
+}
+
 /** 테스트 DB의 모든 테이블을 비운다. 운영 DB에서는 절대 실행되지 않는다. */
 export async function resetDb(): Promise<void> {
   if (env.NODE_ENV !== 'test') {

@@ -8,8 +8,8 @@ interface SessionState {
   user: { id: number; email: string } | null
   status: SessionStatus
   init: () => Promise<void>
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string) => Promise<void>
+  login: (loginId: string, password: string) => Promise<void>
+  register: (loginId: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -21,13 +21,9 @@ async function readError(res: Response): Promise<Error> {
 
 async function authenticate(
   path: string,
-  email: string,
-  password: string,
+  body: Record<string, string>,
 ): Promise<AuthResponse> {
-  const res = await apiFetch(path, {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  })
+  const res = await apiFetch(path, { method: 'POST', body: JSON.stringify(body) })
   if (!res.ok) throw await readError(res)
   return (await res.json()) as AuthResponse
 }
@@ -47,14 +43,14 @@ export const useSession = create<SessionState>((set) => ({
     set({ user: body.user, status: 'AUTHENTICATED' })
   },
 
-  login: async (email, password) => {
-    const body = await authenticate('/auth/login', email, password)
+  login: async (loginId, password) => {
+    const body = await authenticate('/auth/login', { loginId, password })
     setAccessToken(body.accessToken)
     set({ user: body.user, status: 'AUTHENTICATED' })
   },
 
-  register: async (email, password) => {
-    const body = await authenticate('/auth/register', email, password)
+  register: async (loginId, email, password) => {
+    const body = await authenticate('/auth/register', { loginId, email, password })
     setAccessToken(body.accessToken)
     set({ user: body.user, status: 'AUTHENTICATED' })
   },

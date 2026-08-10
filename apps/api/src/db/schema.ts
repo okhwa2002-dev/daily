@@ -48,6 +48,9 @@ const syncColumns = {
 
 export const users = pgTable('users', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
+  /** 로그인 식별자. 항상 소문자로 정규화되어 저장된다 */
+  loginId: text('login_id').notNull(),
+  /** 로그인에는 쓰지 않는다. 비밀번호 분실 시 계정을 되찾을 유일한 수단이다 */
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   emailVerifiedAt: timestamp('email_verified_at', { mode: 'string' }),
@@ -57,9 +60,13 @@ export const users = pgTable('users', {
   deletionRequestedBy: bigint('deletion_requested_by', { mode: 'number' }),
   ...auditColumns,
 }, (t) => [
+  uniqueIndex('users_login_id_uq').on(t.loginId),
   uniqueIndex('users_email_uq').on(t.email),
   // 코드성 데이터는 DB와 애플리케이션 양쪽에서 막는다.
   check('users_status_ck', inCodes(t.status, USER_STATUS)),
+  // 정규화되지 않은 아이디가 들어오는 경로를 DB에서도 막는다. 대문자가 섞인
+  // 행이 하나라도 생기면 '대소문자 무시 유일'이 그 순간부터 거짓이 된다.
+  check('users_login_id_ck', sql`${t.loginId} ~ '^[a-z0-9_]{4,20}$'`),
 ])
 
 export const refreshTokens = pgTable('refresh_tokens', {
@@ -90,16 +97,17 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
 
 /**
  * 인증 '전' 이벤트를 기록하므로 감사 컬럼(`_by`)을 갖지 않는다.
- * 없는 계정으로 시도한 경우 행위자 ID가 존재하지 않기 때문이다. 대신 email과 ip를 남긴다.
+ * 없는 계정으로 시도한 경우 행위자 ID가 존재하지 않기 때문이다. 대신 login_id와 ip를 남긴다.
  */
 export const loginAttempts = pgTable('login_attempts', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  email: text('email').notNull(),
+  /** 시도한 아이디. 존재하지 않는 계정일 수 있으므로 FK를 걸지 않는다 */
+  loginId: text('login_id').notNull(),
   ip: text('ip').notNull(),
   succeeded: text('succeeded').notNull(), // 'Y' | 'N'
   attemptedAt: timestamp('attempted_at', { mode: 'string' }).notNull(),
 }, (t) => [
-  index('login_attempts_email_idx').on(t.email, t.attemptedAt),
+  index('login_attempts_login_id_idx').on(t.loginId, t.attemptedAt),
   check('login_attempts_succeeded_ck', sql`${t.succeeded} IN ('Y', 'N')`),
 ])
 

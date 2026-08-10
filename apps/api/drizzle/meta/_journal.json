@@ -15,6 +15,20 @@
       "when": 1786342331487,
       "tag": "0001_chunky_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786348951007,
+      "tag": "0002_past_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786348971951,
+      "tag": "0003_rich_magneto",
+      "breakpoints": true
     }
   ]
 }

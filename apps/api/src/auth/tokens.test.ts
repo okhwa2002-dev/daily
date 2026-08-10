@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db, pool } from '../db/pool.ts'
 import { refreshTokens, users } from '../db/schema.ts'
 import { dbNow } from '../db/time.ts'
@@ -79,5 +80,59 @@ describe('리프레시 토큰', () => {
     const raw = await issueRefreshToken(userId)
     await revokeRefreshToken(raw)
     await expect(rotateRefreshToken(raw)).rejects.toThrow(AppError)
+  })
+
+  it('동시에 같은 토큰으로 로테이션하면 하나만 성공한다', async () => {
+    const userId = await createUser('e@example.com')
+    const raw = await issueRefreshToken(userId)
+
+    // 커넥션 풀에 유휴 커넥션을 두 개 미리 준비해 둔다. 그렇지 않으면 한쪽
+    // 호출이 새 커넥션을 맺는 지연(핸드셰이크) 때문에 우연히 순서가 벌어져
+    // 경쟁이 가려진다 — 그 경우 이 테스트는 고친 코드든 안 고친 코드든
+    // 우연히 통과해버려 회귀를 잡아내지 못한다.
+    await Promise.all([db.execute(sql`select 1`), db.execute(sql`select 1`)])
+
+    const results = await Promise.allSettled([
+      rotateRefreshToken(raw),
+      rotateRefreshToken(raw),
+    ])
+
+    // 선점이 없으면 둘 다 성공하고 옛 토큰이 살아남는다 — 재사용 탐지가 무력화된다.
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1)
+  })
+})
+
+describe('revoked_by 기록', () => {
+  async function revokedByOf(raw: string): Promise<number | null> {
+    const [row] = await db.select({ revokedBy: refreshTokens.revokedBy })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, createHash('sha256').update(raw).digest('hex')))
+    return row?.revokedBy ?? null
+  }
+
+  it('로테이션으로 폐기하면 토큰 주인이 행위자로 남는다', async () => {
+    const userId = await createUser('f@example.com')
+    const raw = await issueRefreshToken(userId)
+    await rotateRefreshToken(raw)
+    expect(await revokedByOf(raw)).toBe(userId)
+  })
+
+  it('로그아웃으로 폐기하면 토큰 주인이 행위자로 남는다', async () => {
+    const userId = await createUser('g@example.com')
+    const raw = await issueRefreshToken(userId)
+    await revokeRefreshToken(raw)
+    expect(await revokedByOf(raw)).toBe(userId)
+  })
+
+  it('재사용 탐지로 강제 폐기하면 시스템 sentinel 0이 남는다', async () => {
+    const userId = await createUser('h@example.com')
+    const first = await issueRefreshToken(userId)
+    const second = await rotateRefreshToken(first)
+
+    // 탈취된 옛 토큰 재사용 → second가 강제 폐기된다
+    await expect(rotateRefreshToken(first)).rejects.toThrow(AppError)
+
+    expect(await revokedByOf(second.token)).toBe(0)
   })
 })

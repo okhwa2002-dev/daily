@@ -68,38 +68,55 @@ async function revokeAllForUser(userId: number): Promise<void> {
 export async function rotateRefreshToken(
   raw: string,
 ): Promise<{ userId: number; token: string }> {
-  const [row] = await db.select().from(refreshTokens)
-    .where(eq(refreshTokens.tokenHash, hashToken(raw)))
+  const hash = hashToken(raw)
+  const now = dbNow()
 
-  if (!row) {
-    throw new AppError(401, 'INVALID_REFRESH_TOKEN', '다시 로그인해주세요.')
-  }
+  // 살아 있는 토큰을 UPDATE 한 번으로 선점한다.
+  //
+  // 조회 후 갱신으로 나누면 TOCTOU가 생긴다. 같은 옛 토큰을 든 요청 두 개가
+  // 동시에 들어오면 둘 다 `revoked_at IS NULL`을 읽고 각자 새 토큰을 발급받으며,
+  // 옛 토큰은 살아남는다. 재사용 탐지는 아무것도 감지하지 못한다 — 이 태스크가
+  // 제공하기로 한 바로 그 보장이 조용히 사라진다.
+  // `WHERE revoked_at IS NULL`을 UPDATE에 넣으면 경쟁에서 정확히 하나만 이긴다.
+  const [claimed] = await db.update(refreshTokens)
+    .set({
+      revokedAt: now,
+      revokedBy: sql`${refreshTokens.userId}`,
+      updatedAt: now,
+      updatedBy: sql`${refreshTokens.userId}`,
+    })
+    .where(and(eq(refreshTokens.tokenHash, hash), isNull(refreshTokens.revokedAt)))
+    .returning()
 
-  // 이미 폐기된 토큰이 다시 들어왔다 = 탈취 가능성.
-  // 공격자와 정상 사용자를 구분할 수 없으므로 양쪽 다 끊는다.
-  if (row.revokedAt !== null) {
-    await revokeAllForUser(row.userId)
+  if (!claimed) {
+    // 선점 실패 — 없는 토큰이거나 이미 폐기된 토큰이다. 둘을 구분해야 한다.
+    const [existing] = await db.select().from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, hash))
+
+    if (!existing) {
+      throw new AppError(401, 'INVALID_REFRESH_TOKEN', '다시 로그인해주세요.')
+    }
+
+    // 폐기된 토큰이 다시 들어왔다 = 탈취 가능성.
+    // 공격자와 정상 사용자를 구분할 수 없으므로 양쪽 다 끊는다.
+    await revokeAllForUser(existing.userId)
     throw new AppError(401, 'REFRESH_TOKEN_REUSED', '보안을 위해 로그아웃되었습니다. 다시 로그인해주세요.')
   }
 
-  if (row.expiresAt <= dbNow()) {
+  // 만료 검사는 선점 뒤에 한다. 만료된 토큰이 폐기 처리되는 건 문제가 아니다.
+  if (claimed.expiresAt <= now) {
     throw new AppError(401, 'REFRESH_TOKEN_EXPIRED', '다시 로그인해주세요.')
   }
 
-  const next = await issueRefreshToken(row.userId)
-  const now = dbNow()
-  const [nextRow] = await db.select().from(refreshTokens)
+  const next = await issueRefreshToken(claimed.userId)
+  const [nextRow] = await db.select({ id: refreshTokens.id }).from(refreshTokens)
     .where(eq(refreshTokens.tokenHash, hashToken(next)))
 
   await db.update(refreshTokens)
-    .set({
-      revokedAt: now, revokedBy: row.userId,
-      replacedBy: nextRow?.id ?? null,
-      updatedAt: now, updatedBy: row.userId,
-    })
-    .where(eq(refreshTokens.id, row.id))
+    .set({ replacedBy: nextRow?.id ?? null })
+    .where(eq(refreshTokens.id, claimed.id))
 
-  return { userId: row.userId, token: next }
+  return { userId: claimed.userId, token: next }
 }
 
 export async function revokeRefreshToken(raw: string): Promise<void> {

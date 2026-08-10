@@ -1112,6 +1112,7 @@ Expected: FAIL — `Failed to resolve import "./password.ts"`
 `apps/api/src/auth/password.ts`:
 
 ```ts
+import { randomBytes } from 'node:crypto'
 import argon2 from 'argon2'
 import { AppError } from '../errors.ts'
 
@@ -1143,6 +1144,20 @@ export function assertValidPassword(pw: string): void {
 
 export async function hashPassword(pw: string): Promise<string> {
   return argon2.hash(pw, { type: argon2.argon2id })
+}
+
+/**
+ * 계정이 없을 때도 argon2 비용을 똑같이 치르기 위한 더미 해시.
+ *
+ * 없는 이메일이라고 검증을 건너뛰면 응답이 눈에 띄게 빨라진다. 본문이
+ * 동일해도 응답 시간만으로 가입 여부를 알아낼 수 있으므로, 본문을 맞춘
+ * 노력이 무의미해진다. 최초 호출 때 한 번만 만들고 재사용한다.
+ */
+let dummyHashPromise: Promise<string> | null = null
+
+export function dummyPasswordHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword(randomBytes(32).toString('hex'))
+  return dummyHashPromise
 }
 
 export async function verifyPassword(hash: string, pw: string): Promise<boolean> {
@@ -1816,7 +1831,9 @@ import { users } from '../db/schema.ts'
 import { dbNow } from '../db/time.ts'
 import { env } from '../env.ts'
 import { AppError } from '../errors.ts'
-import { assertValidPassword, hashPassword, verifyPassword } from '../auth/password.ts'
+import {
+  assertValidPassword, dummyPasswordHash, hashPassword, verifyPassword,
+} from '../auth/password.ts'
 import {
   REFRESH_COOKIE_NAME, issueAccessToken, issueRefreshToken,
   revokeRefreshToken, rotateRefreshToken,
@@ -1877,10 +1894,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     await sleep(await loginDelayMs(email))
 
     const [user] = await db.select().from(users).where(eq(users.email, email))
+
+    // 계정이 없어도 argon2 검증을 반드시 한 번 수행한다. 단축 평가로 건너뛰면
+    // 응답 시간이 짧아져, 본문이 같아도 가입 여부가 드러난다.
+    const passwordOk = await verifyPassword(
+      user?.passwordHash ?? await dummyPasswordHash(),
+      input.password,
+    )
+
     const ok = user !== undefined
       && user.status === 'ACTIVE'
       && user.deletedAt === null
-      && await verifyPassword(user.passwordHash, input.password)
+      && passwordOk
 
     if (!ok) {
       await recordAttempt(email, ip, false)
@@ -1904,9 +1929,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const { userId, token } = await rotateRefreshToken(raw)
-    const [user] = await db.select({ id: users.id, email: users.email })
-      .from(users).where(eq(users.id, userId))
-    if (!user) {
+    const [user] = await db.select({
+      id: users.id, email: users.email, status: users.status, deletedAt: users.deletedAt,
+    }).from(users).where(eq(users.id, userId))
+
+    // 계정 상태를 여기서도 확인한다. 로그인에서만 막으면, 이미 로그인해 둔
+    // 사용자는 정지·탈퇴 이후에도 refresh만으로 세션을 무한히 연장할 수 있다.
+    // 그러면 계정 정지가 아무 의미가 없다.
+    if (!user || user.status !== 'ACTIVE' || user.deletedAt !== null) {
+      // 방금 발급된 새 토큰까지 즉시 폐기한다. 옛 토큰은 rotate가 이미 죽였다.
+      await revokeRefreshToken(token)
+      reply.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' })
       throw new AppError(401, 'INVALID_REFRESH_TOKEN', '다시 로그인해주세요.')
     }
 

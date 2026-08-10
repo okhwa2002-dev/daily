@@ -1268,8 +1268,62 @@ describe('리프레시 토큰', () => {
     await revokeRefreshToken(raw)
     await expect(rotateRefreshToken(raw)).rejects.toThrow(AppError)
   })
+
+  it('동시에 같은 토큰으로 로테이션하면 하나만 성공한다', async () => {
+    const userId = await createUser('e@example.com')
+    const raw = await issueRefreshToken(userId)
+
+    const results = await Promise.allSettled([
+      rotateRefreshToken(raw),
+      rotateRefreshToken(raw),
+    ])
+
+    // 선점이 없으면 둘 다 성공하고 옛 토큰이 살아남는다 — 재사용 탐지가 무력화된다.
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1)
+  })
+})
+
+describe('revoked_by 기록', () => {
+  async function revokedByOf(raw: string): Promise<number | null> {
+    const [row] = await db.select({ revokedBy: refreshTokens.revokedBy })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, createHash('sha256').update(raw).digest('hex')))
+    return row?.revokedBy ?? null
+  }
+
+  it('로테이션으로 폐기하면 토큰 주인이 행위자로 남는다', async () => {
+    const userId = await createUser('f@example.com')
+    const raw = await issueRefreshToken(userId)
+    await rotateRefreshToken(raw)
+    expect(await revokedByOf(raw)).toBe(userId)
+  })
+
+  it('로그아웃으로 폐기하면 토큰 주인이 행위자로 남는다', async () => {
+    const userId = await createUser('g@example.com')
+    const raw = await issueRefreshToken(userId)
+    await revokeRefreshToken(raw)
+    expect(await revokedByOf(raw)).toBe(userId)
+  })
+
+  it('재사용 탐지로 강제 폐기하면 시스템 sentinel 0이 남는다', async () => {
+    const userId = await createUser('h@example.com')
+    const first = await issueRefreshToken(userId)
+    const second = await rotateRefreshToken(first)
+
+    // 탈취된 옛 토큰 재사용 → second가 강제 폐기된다
+    await expect(rotateRefreshToken(first)).rejects.toThrow(AppError)
+
+    expect(await revokedByOf(second.token)).toBe(0)
+  })
 })
 ```
+
+마지막 세 테스트가 없으면 `revoked_by`는 코드에만 있고 아무도 지켜주지 않는다. 누군가 로그아웃 경로의 `sql` 자기 참조를 `0`이나 `null`로 "단순화"해도 빨간불이 켜지지 않는다.
+
+동시성 테스트는 선점 방식이 실제로 경쟁을 막는지 직접 증명한다. 조회 후 갱신으로 되돌리면 두 요청이 모두 성공해서 이 테스트가 깨진다.
+
+이 테스트 블록은 `createHash`(`node:crypto`)와 `refreshTokens`(`../db/schema.ts`)를 추가로 import한다.
 
 네 번째 테스트가 재사용 탐지의 핵심이다. **탈취된 토큰이 쓰이면 공격자와 정상 사용자를 구분할 수 없으므로 양쪽 다 끊고 재로그인시키는 것이 유일하게 안전한 선택이다.**
 
@@ -1353,38 +1407,55 @@ async function revokeAllForUser(userId: number): Promise<void> {
 export async function rotateRefreshToken(
   raw: string,
 ): Promise<{ userId: number; token: string }> {
-  const [row] = await db.select().from(refreshTokens)
-    .where(eq(refreshTokens.tokenHash, hashToken(raw)))
+  const hash = hashToken(raw)
+  const now = dbNow()
 
-  if (!row) {
-    throw new AppError(401, 'INVALID_REFRESH_TOKEN', '다시 로그인해주세요.')
-  }
+  // 살아 있는 토큰을 UPDATE 한 번으로 선점한다.
+  //
+  // 조회 후 갱신으로 나누면 TOCTOU가 생긴다. 같은 옛 토큰을 든 요청 두 개가
+  // 동시에 들어오면 둘 다 `revoked_at IS NULL`을 읽고 각자 새 토큰을 발급받으며,
+  // 옛 토큰은 살아남는다. 재사용 탐지는 아무것도 감지하지 못한다 — 이 태스크가
+  // 제공하기로 한 바로 그 보장이 조용히 사라진다.
+  // `WHERE revoked_at IS NULL`을 UPDATE에 넣으면 경쟁에서 정확히 하나만 이긴다.
+  const [claimed] = await db.update(refreshTokens)
+    .set({
+      revokedAt: now,
+      revokedBy: sql`${refreshTokens.userId}`,
+      updatedAt: now,
+      updatedBy: sql`${refreshTokens.userId}`,
+    })
+    .where(and(eq(refreshTokens.tokenHash, hash), isNull(refreshTokens.revokedAt)))
+    .returning()
 
-  // 이미 폐기된 토큰이 다시 들어왔다 = 탈취 가능성.
-  // 공격자와 정상 사용자를 구분할 수 없으므로 양쪽 다 끊는다.
-  if (row.revokedAt !== null) {
-    await revokeAllForUser(row.userId)
+  if (!claimed) {
+    // 선점 실패 — 없는 토큰이거나 이미 폐기된 토큰이다. 둘을 구분해야 한다.
+    const [existing] = await db.select().from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, hash))
+
+    if (!existing) {
+      throw new AppError(401, 'INVALID_REFRESH_TOKEN', '다시 로그인해주세요.')
+    }
+
+    // 폐기된 토큰이 다시 들어왔다 = 탈취 가능성.
+    // 공격자와 정상 사용자를 구분할 수 없으므로 양쪽 다 끊는다.
+    await revokeAllForUser(existing.userId)
     throw new AppError(401, 'REFRESH_TOKEN_REUSED', '보안을 위해 로그아웃되었습니다. 다시 로그인해주세요.')
   }
 
-  if (row.expiresAt <= dbNow()) {
+  // 만료 검사는 선점 뒤에 한다. 만료된 토큰이 폐기 처리되는 건 문제가 아니다.
+  if (claimed.expiresAt <= now) {
     throw new AppError(401, 'REFRESH_TOKEN_EXPIRED', '다시 로그인해주세요.')
   }
 
-  const next = await issueRefreshToken(row.userId)
-  const now = dbNow()
-  const [nextRow] = await db.select().from(refreshTokens)
+  const next = await issueRefreshToken(claimed.userId)
+  const [nextRow] = await db.select({ id: refreshTokens.id }).from(refreshTokens)
     .where(eq(refreshTokens.tokenHash, hashToken(next)))
 
   await db.update(refreshTokens)
-    .set({
-      revokedAt: now, revokedBy: row.userId,
-      replacedBy: nextRow?.id ?? null,
-      updatedAt: now, updatedBy: row.userId,
-    })
-    .where(eq(refreshTokens.id, row.id))
+    .set({ replacedBy: nextRow?.id ?? null })
+    .where(eq(refreshTokens.id, claimed.id))
 
-  return { userId: row.userId, token: next }
+  return { userId: claimed.userId, token: next }
 }
 
 export async function revokeRefreshToken(raw: string): Promise<void> {

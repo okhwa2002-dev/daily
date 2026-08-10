@@ -19,7 +19,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     // 별도로 켤 필요가 없다.
     // nginx 뒤에 있으므로 X-Forwarded-For를 신뢰해야 req.ip가 실제 클라이언트 IP가 된다.
     // 이 설정이 없으면 로그인 실패 기록의 IP가 전부 127.0.0.1이 된다.
-    trustProxy: true,
+    // 단, 신뢰하는 홉은 정확히 1개(nginx)로 제한한다. nginx는
+    // $proxy_add_x_forwarded_for로 클라이언트가 보낸 X-Forwarded-For 뒤에
+    // 실제 IP를 덧붙이므로, true(모든 홉 신뢰)를 주면 proxy-addr가 체인의
+    // 가장 왼쪽 — 즉 클라이언트가 마음대로 적은 값 — 을 req.ip로 채택해버린다.
+    // 그러면 요청마다 X-Forwarded-For를 바꿔 rate limit과 login_attempts.ip를
+    // 둘 다 속일 수 있다. 홉을 1로 제한하면 nginx가 덧붙인, 오른쪽에서 한 칸
+    // 안쪽의 실제 클라이언트 IP를 사용한다.
+    trustProxy: 1,
   })
 
   await app.register(cookie)

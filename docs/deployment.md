@@ -6,6 +6,10 @@
 # 1. 패키지
 #    Node 22 LTS, pnpm, PostgreSQL 18, nginx, certbot, PM2 설치
 
+# 방화벽 — API 포트(3001)는 절대 외부에 열지 않는다. nginx만 루프백으로 붙는다.
+sudo ufw allow 22,80,443/tcp
+sudo ufw enable
+
 # 2. 저장소와 데이터베이스
 git clone <저장소 URL> /srv/daily
 cd /srv/daily

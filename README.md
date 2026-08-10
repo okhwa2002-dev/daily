@@ -93,15 +93,21 @@ daily/
 ```bash
 pnpm install
 
-# 데이터베이스
-createdb daily
-createdb daily_test
-
 # 환경변수 — .env.example을 참고해 작성한다. .env는 커밋하지 않는다.
 cp .env.example .env
 ```
 
 `.env`의 `JWT_SECRET`에는 32자 이상의 임의 값을 넣습니다 (`openssl rand -base64 48`).
+`POSTGRES_PASSWORD`와 두 `DATABASE_URL`(개발용·테스트용)의 비밀번호 자리에는 같은 값을 넣습니다.
+
+```bash
+# 로컬 개발용 PostgreSQL 컨테이너 기동 (docker-compose.yml)
+# 호스트 5432가 네이티브 PostgreSQL과 충돌하지 않도록 5438 포트를 씁니다.
+docker compose up -d --wait
+
+# daily_test 생성 + daily·daily_test 마이그레이션을 한 번에
+pnpm db:setup
+```
 
 ### 개발
 
@@ -135,13 +141,13 @@ pnpm build        # 프로덕션 빌드
 | 웹 PWA 셸, Dexie 아웃박스 스키마 | 완료 |
 | API 클라이언트, 인증 화면 | 완료 |
 | 배포 구성 (PM2·nginx·런북) | 완료 |
-| DB 스키마·마이그레이션 | 미완 |
-| 토큰 발급·검증, 인증 라우트 | 미완 |
+| DB 스키마·마이그레이션 | 완료 |
+| 토큰 발급·검증, 인증 라우트 | 완료 |
 | 동기화 엔진 (2단계) | 미착수 |
 | 도메인 기능 (지출·운동·식사·일기·독서) | 미착수 |
 | 약관·개인정보처리방침 | 미작성 (공개 배포 전 필수) |
 
-현재 로그인 화면은 렌더링되지만 호출할 인증 API가 아직 없습니다.
+1단계(회원가입·로그인·토큰 갱신·로그아웃) 인증은 완료됐습니다. 동기화 엔진과 지출·운동·식사·일기·독서 도메인 기능은 2단계이며 아직 손대지 않았습니다.
 
 ---
 

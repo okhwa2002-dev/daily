@@ -34,9 +34,6 @@ services:
       # PostgreSQL 18부터 데이터가 /var/lib/postgresql/<메이저버전>/ 아래로 들어간다.
       # 예전처럼 /var/lib/postgresql/data에 마운트하면 기동을 거부한다.
       - daily-pgdata:/var/lib/postgresql
-      # initdb 스크립트는 볼륨이 비어 있을 때 최초 1회만 실행된다.
-      # 스크립트를 고친 뒤 다시 적용하려면 `docker compose down -v`가 필요하다.
-      - ./deploy/initdb:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-daily} -d ${POSTGRES_DB:-daily}"]

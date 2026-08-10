@@ -7,7 +7,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "dev:api": "pnpm --filter @daily/api dev",
-    "dev:web": "pnpm --filter @daily/web dev"
+    "dev:web": "pnpm --filter @daily/web dev",
+    "db:setup": "sh -c \"set -a; . ./.env; set +a; docker compose exec -T postgres createdb -U $POSTGRES_USER daily_test || true; pnpm --filter @daily/api db:migrate && DATABASE_URL=$DATABASE_URL_TEST pnpm --filter @daily/api db:migrate\""
   },
   "devDependencies": {
     "typescript": "~6.0.2",

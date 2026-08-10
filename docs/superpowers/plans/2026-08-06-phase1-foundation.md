@@ -958,13 +958,17 @@ export async function resetDb(): Promise<void> {
 "db:migrate": "drizzle-kit migrate"
 ```
 
+로컬 개발 DB는 저장소 루트의 `docker-compose.yml`로 띄운다. `daily`와 `daily_test`는 이미 만들어져 있으므로 `createdb`를 다시 실행하지 않는다.
+
 ```bash
-createdb daily
-createdb daily_test
+docker compose up -d --wait        # 이미 떠 있으면 생략
+
 pnpm --filter @daily/api db:generate
 pnpm --filter @daily/api db:migrate
 DATABASE_URL=$DATABASE_URL_TEST pnpm --filter @daily/api db:migrate
 ```
+
+마지막 줄이 필요한 이유: `drizzle.config.ts`는 `DATABASE_URL`만 보므로, 테스트 DB에는 환경변수를 갈아끼워 한 번 더 적용해야 한다. 이걸 빼면 통합 테스트가 "relation does not exist"로 죽는다.
 
 - [ ] **Step 6: 테스트 통과 확인**
 

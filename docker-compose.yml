@@ -1,0 +1,50 @@
+# 로컬 개발용 PostgreSQL.
+#
+# 이 파일은 **개발 환경 전용**이다. 운영 배포는 VPS에 설치한 PostgreSQL을
+# 직접 쓰며 컨테이너를 쓰지 않는다 (docs/deployment.md 참고).
+# "Docker/K8s 배포를 도입하지 않는다"는 방침과 충돌하지 않는 이유가 이것이다.
+#
+#   docker compose up -d      # 기동
+#   docker compose down       # 정지 (데이터는 볼륨에 남는다)
+#   docker compose down -v    # 정지 + 데이터 삭제 (초기화)
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: daily-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-daily}
+      # 값이 없으면 컨테이너를 띄우지 않는다. 비밀번호 없는 DB가
+      # 조용히 만들어지는 것보다 여기서 실패하는 편이 낫다.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 .env에 설정해야 합니다}
+      POSTGRES_DB: ${POSTGRES_DB:-daily}
+      # 시각 컬럼에 KST 벽시계 값을 저장하는 규칙 때문에 컨테이너 타임존을
+      # 맞춘다. 이걸 빼면 SQL에서 NOW()를 쓸 때 UTC 기준 값이 들어간다.
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+
+    ports:
+      # 윈도우에 설치된 PostgreSQL 서비스(자동 시작)가 5432를 잡으면 충돌한다.
+      # 그때는 .env에서 POSTGRES_PORT=5433으로 바꾸고 DATABASE_URL도 함께 고친다.
+      - "${POSTGRES_PORT:-5438}:5432"
+
+    volumes:
+      # PostgreSQL 18부터 데이터가 /var/lib/postgresql/<메이저버전>/ 아래로 들어간다.
+      # 예전처럼 /var/lib/postgresql/data에 마운트하면 기동을 거부한다.
+      - daily-pgdata:/var/lib/postgresql
+      # initdb 스크립트는 볼륨이 비어 있을 때 최초 1회만 실행된다.
+      # 스크립트를 고친 뒤 다시 적용하려면 `docker compose down -v`가 필요하다.
+      - ./deploy/initdb:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-daily} -d ${POSTGRES_DB:-daily}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  daily-pgdata:
+    name: daily-pgdata

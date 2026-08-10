@@ -565,10 +565,23 @@ const schema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
+  // 운영에는 테스트 DB가 없으므로 선택 값이되, 아래 superRefine이
+  // NODE_ENV=test일 때는 필수로 만든다.
+  DATABASE_URL_TEST: z.string().min(1).optional(),
   JWT_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL_SEC: z.coerce.number().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(30),
   COOKIE_SECURE: z.coerce.boolean().default(true),
+}).superRefine((v, ctx) => {
+  // 테스트 실행인데 테스트 DB가 지정되지 않았다면 즉시 죽는다.
+  // 조용히 개발 DB로 붙으면 resetDb()가 개발 데이터를 TRUNCATE한다.
+  if (v.NODE_ENV === 'test' && !v.DATABASE_URL_TEST) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['DATABASE_URL_TEST'],
+      message: 'NODE_ENV=test에서는 DATABASE_URL_TEST가 반드시 필요합니다.',
+    })
+  }
 })
 
 const parsed = schema.safeParse(process.env)
@@ -833,10 +846,12 @@ import * as schema from './schema.ts'
 pg.types.setTypeParser(1114, (v: string) => v)
 pg.types.setTypeParser(1082, (v: string) => v)
 
-const connectionString =
-  env.NODE_ENV === 'test'
-    ? (process.env.DATABASE_URL_TEST ?? env.DATABASE_URL)
-    : env.DATABASE_URL
+// 테스트에서는 반드시 테스트 DB로만 붙는다. 폴백을 두지 않는 이유:
+// Vitest가 NODE_ENV=test를 자동 설정하므로, DATABASE_URL_TEST가 비어 있을 때
+// 개발 DB로 흘러가면 resetDb()의 TRUNCATE가 개발 데이터를 날린다.
+// env 스키마가 test 환경에서 이 값을 필수로 강제하므로 여기서는 단정해도 된다.
+export const connectionString =
+  env.NODE_ENV === 'test' ? env.DATABASE_URL_TEST! : env.DATABASE_URL
 
 export const pool = new pg.Pool({ connectionString, max: 10 })
 export const db = drizzle(pool, { schema })
@@ -856,8 +871,9 @@ export function dbNow(): string {
 `apps/api/src/db/schema.ts`:
 
 ```ts
+import { sql } from 'drizzle-orm'
 import {
-  bigint, bigserial, index, pgTable, text, timestamp, uniqueIndex,
+  bigint, bigserial, check, index, pgTable, text, timestamp, uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 /** 모든 테이블이 공유하는 감사 컬럼. `_at`에는 반드시 `_by`가 따라붙는다. */
@@ -875,10 +891,16 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   emailVerifiedAt: timestamp('email_verified_at', { mode: 'string' }),
+  emailVerifiedBy: bigint('email_verified_by', { mode: 'number' }),
   status: text('status').notNull().default('ACTIVE'),
   deletionRequestedAt: timestamp('deletion_requested_at', { mode: 'string' }),
+  deletionRequestedBy: bigint('deletion_requested_by', { mode: 'number' }),
   ...auditColumns,
-}, (t) => [uniqueIndex('users_email_uq').on(t.email)])
+}, (t) => [
+  uniqueIndex('users_email_uq').on(t.email),
+  // 코드성 데이터는 DB와 애플리케이션 양쪽에서 막는다.
+  check('users_status_ck', sql`${t.status} IN ('ACTIVE', 'SUSPENDED', 'PENDING_DELETION')`),
+])
 
 export const refreshTokens = pgTable('refresh_tokens', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -886,6 +908,8 @@ export const refreshTokens = pgTable('refresh_tokens', {
   tokenHash: text('token_hash').notNull(),
   expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
   revokedAt: timestamp('revoked_at', { mode: 'string' }),
+  /** 폐기한 주체. 사용자 로그아웃과 재사용 탐지에 의한 시스템 폐기(0)를 구분한다 */
+  revokedBy: bigint('revoked_by', { mode: 'number' }),
   /** 로테이션 체인 추적 — 이 토큰이 어떤 토큰을 대체했는지 */
   replacedBy: bigint('replaced_by', { mode: 'number' }),
   ...auditColumns,
@@ -900,6 +924,7 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   tokenHash: text('token_hash').notNull(),
   expiresAt: timestamp('expires_at', { mode: 'string' }).notNull(),
   usedAt: timestamp('used_at', { mode: 'string' }),
+  usedBy: bigint('used_by', { mode: 'number' }),
   ...auditColumns,
 }, (t) => [uniqueIndex('password_reset_tokens_hash_uq').on(t.tokenHash)])
 
@@ -913,7 +938,10 @@ export const loginAttempts = pgTable('login_attempts', {
   ip: text('ip').notNull(),
   succeeded: text('succeeded').notNull(), // 'Y' | 'N'
   attemptedAt: timestamp('attempted_at', { mode: 'string' }).notNull(),
-}, (t) => [index('login_attempts_email_idx').on(t.email, t.attemptedAt)])
+}, (t) => [
+  index('login_attempts_email_idx').on(t.email, t.attemptedAt),
+  check('login_attempts_succeeded_ck', sql`${t.succeeded} IN ('Y', 'N')`),
+])
 ```
 
 `apps/api/drizzle.config.ts`:
@@ -934,13 +962,18 @@ export default defineConfig({
 
 ```ts
 import { sql } from 'drizzle-orm'
-import { db } from './pool.ts'
+import { connectionString, db } from './pool.ts'
 import { env } from '../env.ts'
 
 /** 테스트 DB의 모든 테이블을 비운다. 운영 DB에서는 절대 실행되지 않는다. */
 export async function resetDb(): Promise<void> {
   if (env.NODE_ENV !== 'test') {
     throw new Error('resetDb는 테스트 환경에서만 실행할 수 있습니다.')
+  }
+  // NODE_ENV만 믿지 않는다. 실제로 붙어 있는 대상이 개발 DB면 멈춘다.
+  // 이 두 겹이 있어야 환경변수 하나가 잘못돼도 개발 데이터가 날아가지 않는다.
+  if (connectionString === env.DATABASE_URL) {
+    throw new Error('resetDb가 개발 DB를 가리키고 있습니다. DATABASE_URL_TEST를 확인하세요.')
   }
   await db.execute(sql`
     TRUNCATE TABLE login_attempts, password_reset_tokens, refresh_tokens, users

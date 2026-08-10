@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import argon2 from 'argon2'
 import { AppError } from '../errors.ts'
 
@@ -29,6 +30,20 @@ export function assertValidPassword(pw: string): void {
 
 export async function hashPassword(pw: string): Promise<string> {
   return argon2.hash(pw, { type: argon2.argon2id })
+}
+
+/**
+ * 계정이 없을 때도 argon2 비용을 똑같이 치르기 위한 더미 해시.
+ *
+ * 없는 이메일이라고 검증을 건너뛰면 응답이 눈에 띄게 빨라진다. 본문이
+ * 동일해도 응답 시간만으로 가입 여부를 알아낼 수 있으므로, 본문을 맞춘
+ * 노력이 무의미해진다. 최초 호출 때 한 번만 만들고 재사용한다.
+ */
+let dummyHashPromise: Promise<string> | null = null
+
+export function dummyPasswordHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword(randomBytes(32).toString('hex'))
+  return dummyHashPromise
 }
 
 export async function verifyPassword(hash: string, pw: string): Promise<boolean> {

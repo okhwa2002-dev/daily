@@ -1,7 +1,10 @@
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../app.ts'
-import { pool } from '../db/pool.ts'
+import { db, pool } from '../db/pool.ts'
+import { users } from '../db/schema.ts'
+import { dbNow } from '../db/time.ts'
 import { resetDb } from '../db/testing.ts'
 import { REFRESH_COOKIE_NAME } from '../auth/tokens.ts'
 
@@ -78,6 +81,36 @@ describe('POST /api/auth/login', () => {
     expect(wrongPassword.json().error.code).toBe(noAccount.json().error.code)
     expect(wrongPassword.json().error.message).toBe(noAccount.json().error.message)
   })
+
+  it('정지된 계정은 로그인할 수 없고 응답이 틀린 비밀번호와 같다', async () => {
+    await db.update(users).set({ status: 'SUSPENDED' }).where(eq(users.email, CREDENTIALS.email))
+
+    const suspended = await app.inject({ method: 'POST', url: '/api/auth/login', payload: CREDENTIALS })
+    const wrongPassword = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      payload: { ...CREDENTIALS, password: '틀린 비밀번호입니다' },
+    })
+
+    expect(suspended.statusCode).toBe(401)
+    expect(suspended.json().error.code).toBe(wrongPassword.json().error.code)
+    expect(suspended.json().error.message).toBe(wrongPassword.json().error.message)
+  })
+
+  it('탈퇴한 계정은 로그인할 수 없고 응답이 틀린 비밀번호와 같다', async () => {
+    await db.update(users)
+      .set({ deletedAt: dbNow(), deletedBy: 0 })
+      .where(eq(users.email, CREDENTIALS.email))
+
+    const deleted = await app.inject({ method: 'POST', url: '/api/auth/login', payload: CREDENTIALS })
+    const wrongPassword = await app.inject({
+      method: 'POST', url: '/api/auth/login',
+      payload: { ...CREDENTIALS, password: '틀린 비밀번호입니다' },
+    })
+
+    expect(deleted.statusCode).toBe(401)
+    expect(deleted.json().error.code).toBe(wrongPassword.json().error.code)
+    expect(deleted.json().error.message).toBe(wrongPassword.json().error.message)
+  })
 })
 
 describe('POST /api/auth/refresh', () => {
@@ -100,6 +133,29 @@ describe('POST /api/auth/refresh', () => {
   it('쿠키가 없으면 401을 반환한다', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/auth/refresh' })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('정지된 계정은 이미 발급받은 리프레시 쿠키로도 세션을 연장할 수 없다', async () => {
+    const registered = await app.inject({
+      method: 'POST', url: '/api/auth/register', payload: CREDENTIALS,
+    })
+    const first = refreshCookie(registered)
+
+    await db.update(users).set({ status: 'SUSPENDED' }).where(eq(users.email, CREDENTIALS.email))
+
+    const res = await app.inject({
+      method: 'POST', url: '/api/auth/refresh',
+      cookies: { [REFRESH_COOKIE_NAME]: first },
+    })
+    expect(res.statusCode).toBe(401)
+
+    // rotate로 새로 발급된 토큰도 즉시 폐기되므로, 같은 쿠키로 다시 시도해도
+    // 통과할 수 없다 — 정지된 계정이 refresh만으로 세션을 되살릴 길이 없어야 한다.
+    const again = await app.inject({
+      method: 'POST', url: '/api/auth/refresh',
+      cookies: { [REFRESH_COOKIE_NAME]: first },
+    })
+    expect(again.statusCode).toBe(401)
   })
 })
 

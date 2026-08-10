@@ -6,6 +6,7 @@ import { AppError } from './errors.ts'
 import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
 import { authRoutes } from './routes/auth.ts'
+import { syncRoutes } from './routes/sync.ts'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -50,6 +51,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerErrorHandler(app)
   await app.register(healthRoutes, { prefix: '/api' })
   await app.register(authRoutes, { prefix: '/api' })
+  await app.register(syncRoutes, { prefix: '/api' })
 
   return app
 }

@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie'
 import { env } from './env.ts'
 import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
+import { authRoutes } from './routes/auth.ts'
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -22,6 +23,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(cookie)
   registerErrorHandler(app)
   await app.register(healthRoutes, { prefix: '/api' })
+  await app.register(authRoutes, { prefix: '/api' })
 
   return app
 }

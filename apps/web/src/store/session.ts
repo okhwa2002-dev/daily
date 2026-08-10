@@ -1,11 +1,6 @@
 import { create } from 'zustand'
+import type { AuthResponse } from '@daily/shared'
 import { apiFetch, setAccessToken } from '../lib/apiClient.ts'
-
-// TODO(Task 8): @daily/shared에 AuthResponse가 추가되면 로컬 정의를 지우고 그쪽에서 가져온다.
-interface AuthResponse {
-  accessToken: string
-  user: { id: number; email: string }
-}
 
 type SessionStatus = 'LOADING' | 'AUTHENTICATED' | 'ANONYMOUS'
 

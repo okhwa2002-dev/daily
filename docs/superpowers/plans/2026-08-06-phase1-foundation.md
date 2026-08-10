@@ -470,9 +470,18 @@ pnpm --filter @daily/api add -D @types/node@^22 tsx vitest
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  test: { environment: 'node', globals: false },
+  test: {
+    environment: 'node',
+    globals: false,
+    // DB 통합 테스트는 daily_test 데이터베이스 하나를 공유한다.
+    // 파일을 병렬로 돌리면 한 파일의 resetDb()가 실행 중인 다른 파일의 행을
+    // TRUNCATE로 지워버린다. 증상은 "혼자 돌리면 통과, 전체로 돌리면 실패"다.
+    fileParallelism: false,
+  },
 })
 ```
+
+`fileParallelism: false`를 빼면 DB 테스트 파일이 두 개를 넘는 순간부터 조용히 깨지기 시작한다. 파일이 하나뿐일 때는 우연히 통과하므로, 문제가 드러날 때쯤에는 어느 변경이 원인인지 찾기 어려워진다.
 
 - [ ] **Step 2: 실패하는 테스트 작성**
 

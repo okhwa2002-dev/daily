@@ -2088,6 +2088,17 @@ import rateLimit from '@fastify/rate-limit'
 await app.register(rateLimit, {
   max: env.NODE_ENV === 'test' ? 10_000 : 300,
   timeWindow: '1 minute',
+  // 이 플러그인은 한도를 넘기면 자기 기본 본문을 reply.send()로 직접 보낸다.
+  // 던져진 Error가 아니라서 전역 에러 핸들러를 타지 않고, 결과적으로 429만
+  // `{statusCode, error, message}` 모양이 되어 계약이 깨진다.
+  // error.code로 분기하는 클라이언트가 429에서만 터진다.
+  errorResponseBuilder: (req, context) => ({
+    error: {
+      code: 'RATE_LIMITED',
+      message: `요청이 너무 많습니다. ${context.after} 후에 다시 시도해주세요.`,
+      requestId: req.id,
+    },
+  }),
 })
 ```
 

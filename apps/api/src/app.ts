@@ -3,35 +3,26 @@ import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
 import { env } from './env.ts'
 import { AppError } from './errors.ts'
-import { createDailyLogStream } from './logging/daily-logger.ts'
+import { appLogger } from './logging/logger.ts'
 import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
 import { authRoutes } from './routes/auth.ts'
 import { syncRoutes } from './routes/sync.ts'
 
-// 비밀번호·토큰이 로그에 남지 않도록 차단
-const REDACTED_PATHS = ['req.headers.cookie', 'req.headers.authorization', 'req.body.password']
-
 /**
- * 테스트는 로그를 내지 않고 외부 로그 디렉터리도 건드리지 않는다. 그 외에는
- * 콘솔과 일자별 파일에 같은 줄을 남기는 스트림을 pino 목적지로 물린다.
+ * 로거는 `logging/logger.ts`가 소유한다. DB 쿼리 로거도 같은 인스턴스를 쓰므로
+ * 요청 로그와 쿼리 로그가 한 파일에 시간순으로 남는다.
  *
- * fastify 5의 `logger`는 설정 객체만 받는다(pino 인스턴스를 직접 주면
- * "logger options only accepts a configuration object"로 죽는다). 커스텀
- * 목적지는 `stream`으로 넘긴다.
+ * fastify 5의 `logger`는 설정 객체만 받는다(인스턴스를 주면 "logger options
+ * only accepts a configuration object"로 죽는다). 인스턴스는 `loggerInstance`다.
  */
-function buildLogger() {
-  if (env.NODE_ENV === 'test') return { level: 'silent' as const }
-  return {
-    level: 'info',
-    redact: REDACTED_PATHS,
-    stream: createDailyLogStream({ logDirectory: env.LOG_DIR }),
-  }
+function loggerOptions() {
+  return appLogger ? { loggerInstance: appLogger } : { logger: { level: 'silent' as const } }
 }
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: buildLogger(),
+    ...loggerOptions(),
     // 참고: `disableRequestLogging`은 fastify 5에서 deprecated되어 프로세스 경고를
     // 발생시킨다. logger.level을 'silent'로 두면 요청 로그도 함께 억제되므로
     // 별도로 켤 필요가 없다.

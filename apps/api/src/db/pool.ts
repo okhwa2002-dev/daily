@@ -1,6 +1,7 @@
 import pg from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { env } from '../env.ts'
+import { createQueryLogger, queryLoggingEnabled } from './query-logger.ts'
 import * as schema from './schema.ts'
 
 // TIMESTAMP(1114)와 DATE(1082)를 Date로 변환하지 않고 원문 문자열로 받는다.
@@ -16,4 +17,7 @@ export const connectionString =
   env.NODE_ENV === 'test' ? env.DATABASE_URL_TEST! : env.DATABASE_URL
 
 export const pool = new pg.Pool({ connectionString, max: 10 })
-export const db = drizzle(pool, { schema })
+export const db = drizzle(pool, {
+  schema,
+  logger: queryLoggingEnabled ? createQueryLogger() : false,
+})

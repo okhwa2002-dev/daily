@@ -62,8 +62,7 @@ daily/
 │   │       ├── db/       # Dexie 스키마, outbox 큐
 │   │       ├── sync/     # 동기화 엔진 (push/pull, 재시도)
 │   │       ├── store/    # Zustand — UI 상태
-│   │       ├── features/ # expense/ workout/ meal/ journal/ book/ stats/
-│   │       └── pages/
+│   │       └── pages/    # 기능별 폴더 — expense/ workout/ meal/ journal/ …
 │   └── api/          # Fastify 서버
 │       └── src/
 │           ├── routes/

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { kstDate } from '@daily/shared'
 import SyncStatus from '../../components/SyncStatus.tsx'
-import {
-  deleteExpense, ensureDefaultCategories, listCategories, listExpensesByDate,
-  saveExpense, type ExpenseInput,
-} from '../../features/expense/repository.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
 import { logoutSafely } from '../../sync/logout.ts'
 import ExpenseForm from './ExpenseForm.tsx'
+import {
+  deleteExpense, ensureDefaultCategories, listCategories, listExpensesByDate,
+  saveExpense, type ExpenseInput,
+} from './repository.ts'
 
 /** 금액 문자열을 부동소수점을 거치지 않고 최소 단위 정수로 더한다. */
 function toMinorUnits(amount: string): bigint {

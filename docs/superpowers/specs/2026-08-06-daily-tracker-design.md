@@ -97,9 +97,8 @@ daily/
 │   │   │   ├── db/             # Dexie 스키마, outbox 테이블
 │   │   │   ├── sync/           # 동기화 엔진 (push/pull, 재시도, 온라인 감지)
 │   │   │   ├── store/          # Zustand — UI 상태
-│   │   │   ├── features/       # expense/ workout/ meal/ journal/ book/ stats/
 │   │   │   ├── components/     # 공용 UI
-│   │   │   ├── pages/
+│   │   │   ├── pages/          # 기능별 폴더 — expense/ workout/ meal/ …
 │   │   │   └── lib/
 │   │   └── vite.config.ts
 │   └── api/                    # Fastify 서버
@@ -116,7 +115,7 @@ daily/
 
 `packages/shared`가 이 구조의 값어치다. 레코드의 모양을 zod 스키마로 한 곳에만 정의하고, 프론트 폼 검증·백엔드 요청 검증·양쪽 타입 추론이 전부 여기서 파생된다. 스키마를 고치면 어긋난 쪽이 컴파일 에러로 잡힌다.
 
-`features/` 단위 분리는 지출·운동·식사·일기·독서가 서로 독립적이기 때문이다. 각 폴더가 자기 화면·로컬 쿼리·타입을 소유해 한 기능을 고칠 때 다른 기능을 건드리지 않는다.
+`pages/<기능>/` 단위 분리는 지출·운동·식사·일기·독서가 서로 독립적이기 때문이다. 각 폴더가 자기 화면·부품·로컬 쿼리를 소유해 한 기능을 고칠 때 다른 기능을 건드리지 않는다.
 
 ### 배포
 

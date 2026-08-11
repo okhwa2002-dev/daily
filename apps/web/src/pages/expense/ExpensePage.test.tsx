@@ -4,10 +4,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { kstDate } from '@daily/shared'
 import { db } from '../../db/index.ts'
-import { DEFAULT_CATEGORY_NAMES } from '../../features/expense/repository.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
 import ExpensePage from './ExpensePage.tsx'
+import { DEFAULT_CATEGORY_NAMES } from './repository.ts'
 
 const USER = { id: 1, loginId: 'auser', email: 'a@example.com' }
 const TODAY = kstDate(new Date())

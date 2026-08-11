@@ -306,15 +306,22 @@ case 'CONFLICT':
 
 ## 11. 구현 순서
 
-1. shared 스키마 + `SCHEMA_VERSION` 2
-2. 서버 `SYNC_REGISTRY` 두 항목 + 테스트
-3. 기존 결함 3건 수정 + 회귀 테스트
-4. Dexie version(3) + `repository.ts` + 테스트
-5. `TabBar` + 라우팅
-6. `BookListPage` / `BookForm`
-7. `BookDetailPage` / `BookNoteForm`
+1. 결함 (c) CONFLICT 재시도 상한
+2. shared 페이로드 스키마 (`SYNC_TABLE`은 아직 건드리지 않는다)
+3. Dexie version(3) + 로컬 타입
+4. `SYNC_TABLE` 확장 + `SCHEMA_VERSION` 2 + 서버 레지스트리 + 웹 `APPLIERS` + 결함 (a)(b)
+5. `pages/book/repository.ts`
+6. `TabBar` + 라우팅
+7. `BookListPage` / `BookForm`
+8. `BookDetailPage` / `BookNoteForm`
 
-3을 4보다 앞에 두는 것은 의도한 것이다. 결함을 고치지 않은 채 로컬 스토어를 늘리면 (a)와 (b)가 조용히 잘못된 데이터를 만들고, 그 상태에서 화면을 붙이면 원인을 화면에서 찾게 된다.
+결함을 먼저 고치는 것은 의도한 것이다. 고치지 않은 채 로컬 스토어를 늘리면 (a)와 (b)가 조용히 잘못된 데이터를 만들고, 그 상태에서 화면을 붙이면 원인을 화면에서 찾게 된다.
+
+4단계가 큰 이유는 쪼갤 수 없기 때문이다. `SYNC_TABLE`에 항목을 더하는 순간 `SYNC_REGISTRY`(api)와 `APPLIERS`·`recordServerId`(web)가 **동시에** 컴파일 에러가 난다 — 셋 다 `Record<SyncTable, …>`이다. 나눠 커밋하면 중간 상태에서 `pnpm build`가 깨진다.
+
+(a)와 (b)가 4단계에 묶이는 것도 같은 이유다. 그 둘은 `books`가 존재해야 비로소 실패하는 결함이라, 그 전에는 통과하는 테스트밖에 쓸 수 없다. (c)만 지금 상태에서 재현되므로 1단계로 앞세운다.
+
+세부 단계는 [구현 계획](../plans/2026-08-11-book-tracking.md) 참고.
 
 ---
 

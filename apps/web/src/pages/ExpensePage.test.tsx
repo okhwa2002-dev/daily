@@ -1,13 +1,13 @@
 import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { kstDate } from '@daily/shared'
-import { db } from '../../db/index.ts'
-import { useSession } from '../../store/session.ts'
-import { useSync } from '../../store/sync.ts'
+import { db } from '../db/index.ts'
+import { DEFAULT_CATEGORY_NAMES } from '../features/expense/repository.ts'
+import { useSession } from '../store/session.ts'
+import { useSync } from '../store/sync.ts'
 import ExpensePage from './ExpensePage.tsx'
-import { DEFAULT_CATEGORY_NAMES } from './repository.ts'
 
 const USER = { id: 1, loginId: 'auser', email: 'a@example.com' }
 const TODAY = kstDate(new Date())
@@ -102,15 +102,60 @@ describe('지출 화면', () => {
     expect(await screen.findByText(/합계 50,000원/)).toBeInTheDocument()
   })
 
-  it('금액 형식이 틀리면 저장하지 않고 알린다', async () => {
+  it('금액에 숫자가 아닌 문자는 입력되지 않는다', async () => {
     const user = userEvent.setup()
     render(<ExpensePage />)
     await categoriesReady()
 
-    await user.type(screen.getByLabelText('금액'), '1000.999')
-    await user.click(screen.getByRole('button', { name: '기록하기' }))
+    await user.type(screen.getByLabelText('금액'), 'a1b2!')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('소수점 두 자리')
+    expect(screen.getByLabelText('금액')).toHaveValue('12')
+  })
+
+  it('금액에 소수점은 입력되지 않는다', async () => {
+    // 원 단위라 소수점을 쓰지 않는다. 서버·DB는 계속 받지만 화면에서 막는다.
+    const user = userEvent.setup()
+    render(<ExpensePage />)
+    await categoriesReady()
+
+    await user.type(screen.getByLabelText('금액'), '1000.50')
+
+    expect(screen.getByLabelText('금액')).toHaveValue('100050')
+  })
+
+  it('붙여넣기도 같은 규칙을 탄다', async () => {
+    // 타이핑만 막으면 붙여넣기로 그대로 들어온다.
+    const user = userEvent.setup()
+    render(<ExpensePage />)
+    await categoriesReady()
+
+    await user.click(screen.getByLabelText('금액'))
+    await user.paste('12,000원')
+
+    expect(screen.getByLabelText('금액')).toHaveValue('12000')
+  })
+
+  it('금액은 10자리를 넘길 수 없다', async () => {
+    // shared의 amountSchema가 \d{1,10}이다. 넘치면 제출 시점에야 거절당한다.
+    const user = userEvent.setup()
+    render(<ExpensePage />)
+    await categoriesReady()
+
+    await user.type(screen.getByLabelText('금액'), '123456789012')
+
+    expect(screen.getByLabelText('금액')).toHaveValue('1234567890')
+  })
+
+  it('폼이 직접 제출돼도 형식 검사가 막는다', async () => {
+    render(<ExpensePage />)
+    await categoriesReady()
+
+    // 입력 필터와 required가 정상 경로를 먼저 막으므로 이 검사는 UI로 도달하지
+    // 않는다. 남겨두는 방어선이 실제로 동작하는지만 확인한다.
+    fireEvent.submit(screen.getByRole('button', { name: '기록하기' }).closest('form')!)
+
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent('금액은 10자리 이하의 숫자여야 합니다.')
     expect(await db.expenses.count()).toBe(0)
   })
 

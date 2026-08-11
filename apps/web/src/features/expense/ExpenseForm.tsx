@@ -3,8 +3,20 @@ import type { ExpenseKind } from '@daily/shared'
 import type { LocalExpenseCategory } from '../../db/index.ts'
 import type { ExpenseInput } from './repository.ts'
 
-/** 소수점 두 자리까지의 0 이상 숫자. 서버 검증과 같은 규칙이다. */
-const AMOUNT = /^\d{1,10}(\.\d{1,2})?$/
+/**
+ * 화면은 정수만 받는다 — 원 단위라 소수점을 쓸 일이 없다.
+ *
+ * shared의 `amountSchema`(`\d{1,10}(\.\d{1,2})?`)보다 **의도적으로 좁다.** 서버와
+ * DB(`NUMERIC(12,2)`)는 소수점을 계속 받으므로 이 둘을 맞추려고 되돌리지 않는다.
+ * 자릿수 상한만 shared와 같게 유지한다.
+ */
+const AMOUNT = /^\d{1,10}$/
+const AMOUNT_MAX_DIGITS = 10
+
+/** 숫자가 아닌 것은 애초에 입력되지 않게 한다. 타이핑·붙여넣기가 같이 지나는 길목이다. */
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '')
+}
 
 interface Props {
   categories: LocalExpenseCategory[]
@@ -24,7 +36,7 @@ export default function ExpenseForm({ categories, onSubmit, occurredOn }: Props)
     e.preventDefault()
     const trimmed = amount.trim()
     if (!AMOUNT.test(trimmed)) {
-      setError('금액은 소수점 두 자리까지의 0 이상 숫자여야 합니다.')
+      setError('금액은 10자리 이하의 숫자여야 합니다.')
       return
     }
 
@@ -70,8 +82,9 @@ export default function ExpenseForm({ categories, onSubmit, occurredOn }: Props)
         <span className="text-sm text-gray-600">금액</span>
         <input
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputMode="decimal"
+          onChange={(e) => setAmount(digitsOnly(e.target.value))}
+          inputMode="numeric"
+          maxLength={AMOUNT_MAX_DIGITS}
           required
           className="rounded-lg border border-gray-300 px-3 py-2"
         />

@@ -41,7 +41,7 @@ daily/
 │   │   │   ├── store/          # Zustand — UI 상태
 │   │   │   ├── features/       # expense/ workout/ meal/ journal/ book/ stats/
 │   │   │   ├── components/     # 공용 UI
-│   │   │   ├── pages/
+│   │   │   ├── pages/          # 화면 — 라우트가 가리키는 컴포넌트는 전부 여기
 │   │   │   └── lib/
 │   │   └── vite.config.ts
 │   └── api/                    # Fastify 서버
@@ -68,9 +68,17 @@ daily/
 
 예외는 인증(로그인/회원가입)뿐이다.
 
+### 화면은 pages 아래에 둔다
+
+**라우트가 가리키는 컴포넌트는 전부 `pages/`에 둔다.** `ExpensePage`, `LoginPage`처럼 한 화면 전체를 이루는 것들이다.
+
+화면을 기능 폴더에 두면 라우팅 표를 봐도 화면이 어디 있는지 알 수 없고, 기능이 늘수록 찾는 비용이 기능 수만큼 늘어난다. `pages/`만 열면 이 앱에 어떤 화면이 있는지 한눈에 보이는 것이 목적이다.
+
 ### 기능 단위 분리
 
-`features/` 아래 각 폴더는 자기 화면·로컬 쿼리·타입을 소유한다. 지출·운동·식사·일기·독서는 서로 독립적이므로 한 기능을 고칠 때 다른 기능을 건드리지 않아야 한다.
+`features/` 아래 각 폴더는 자기 **입력 폼·로컬 쿼리·타입**을 소유한다. 화면은 여기에 두지 않는다 — `ExpenseForm`과 `repository`는 `features/expense/`에, `ExpensePage`는 `pages/`에 있다.
+
+지출·운동·식사·일기·독서는 서로 독립적이므로 한 기능을 고칠 때 다른 기능을 건드리지 않아야 한다.
 
 공용으로 올릴지 판단이 서지 않으면 일단 feature 안에 둔다. 두 번째 사용처가 생겼을 때 `components/`로 올린다.
 

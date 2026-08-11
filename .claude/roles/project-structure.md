@@ -39,9 +39,9 @@ daily/
 │   │   │   ├── db/             # Dexie 스키마, outbox 테이블
 │   │   │   ├── sync/           # 동기화 엔진 (push/pull, 재시도, 온라인 감지)
 │   │   │   ├── store/          # Zustand — UI 상태
-│   │   │   ├── features/       # expense/ workout/ meal/ journal/ book/ stats/
+│   │   │   ├── features/       # 기능별 데이터 계층 — expense/ workout/ meal/ …
 │   │   │   ├── components/     # 공용 UI
-│   │   │   ├── pages/          # 화면 — 라우트가 가리키는 컴포넌트는 전부 여기
+│   │   │   ├── pages/          # 화면 — 기능별 폴더 (expense/ workout/ …)
 │   │   │   └── lib/
 │   │   └── vite.config.ts
 │   └── api/                    # Fastify 서버
@@ -70,17 +70,24 @@ daily/
 
 ### 화면은 pages 아래에 둔다
 
-**라우트가 가리키는 컴포넌트는 전부 `pages/`에 둔다.** `ExpensePage`, `LoginPage`처럼 한 화면 전체를 이루는 것들이다.
+**UI는 `pages/`, 데이터 계층은 `features/`다.** 기능이 여러 파일을 가지면 `pages/expense/`처럼 기능별 폴더로 묶는다.
 
-화면을 기능 폴더에 두면 라우팅 표를 봐도 화면이 어디 있는지 알 수 없고, 기능이 늘수록 찾는 비용이 기능 수만큼 늘어난다. `pages/`만 열면 이 앱에 어떤 화면이 있는지 한눈에 보이는 것이 목적이다.
+```
+pages/expense/      ExpensePage.tsx  ExpenseForm.tsx
+features/expense/   repository.ts
+```
+
+화면을 `features/` 아래에 두면 라우팅 표를 봐도 화면이 어디 있는지 알 수 없고, 기능이 늘수록 찾는 비용이 기능 수만큼 늘어난다. `pages/`만 열면 이 앱에 어떤 화면이 있는지 한눈에 보이는 것이 목적이다.
+
+화면을 이루는 부품(입력 폼 등)은 그 화면 폴더에 함께 둔다. 화면 하나를 고칠 때 파일 두 개가 서로 다른 트리에 흩어져 있으면 매번 왕복해야 한다.
 
 ### 기능 단위 분리
 
-`features/` 아래 각 폴더는 자기 **입력 폼·로컬 쿼리·타입**을 소유한다. 화면은 여기에 두지 않는다 — `ExpenseForm`과 `repository`는 `features/expense/`에, `ExpensePage`는 `pages/`에 있다.
+`features/` 아래 각 폴더는 자기 **로컬 쿼리와 타입**을 소유한다. 화면이 데이터에 닿는 유일한 통로이며, Dexie 접근과 아웃박스 적재가 전부 여기 모인다.
 
 지출·운동·식사·일기·독서는 서로 독립적이므로 한 기능을 고칠 때 다른 기능을 건드리지 않아야 한다.
 
-공용으로 올릴지 판단이 서지 않으면 일단 feature 안에 둔다. 두 번째 사용처가 생겼을 때 `components/`로 올린다.
+공용으로 올릴지 판단이 서지 않으면 일단 그 화면 폴더 안에 둔다. 두 번째 사용처가 생겼을 때 `components/`로 올린다.
 
 ### 스키마는 shared에 한 번만 정의한다
 

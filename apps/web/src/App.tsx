@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
-import ExpensePage from './pages/ExpensePage.tsx'
+import ExpensePage from './pages/expense/ExpensePage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
 import { useSession } from './store/session.ts'

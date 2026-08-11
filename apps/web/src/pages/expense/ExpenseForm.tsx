@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { ExpenseKind } from '@daily/shared'
 import type { LocalExpenseCategory } from '../../db/index.ts'
-import type { ExpenseInput } from './repository.ts'
+import type { ExpenseInput } from '../../features/expense/repository.ts'
 
 /**
  * 화면은 정수만 받는다 — 원 단위라 소수점을 쓸 일이 없다.

@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import { expect, it } from 'vitest'
-import { createDailyLogStream, dailyLogFilename, formatLogTimestamp } from './daily-logger.ts'
+import {
+  createDailyLogStream,
+  dailyLogFilename,
+  formatLogTimestamp,
+  stringifyWithNewlines,
+} from './daily-logger.ts'
 
 /** 콘솔 출력을 문자열로 모으는 스텁. 실제 stdout을 더럽히지 않는다. */
 function captureStdout(): { stream: Writable; text: () => string } {
@@ -41,6 +46,31 @@ it('한 줄짜리 로그를 stdout과 오늘 파일 양쪽에 쓴다', async () 
   const fileText = await readFile(join(directory, 'daily-api.log'), 'utf8')
   expect(fileText).toBe('2026-08-11 04:05:06 INFO ready\n')
   expect(stdout.text()).toBe(fileText)
+})
+
+it('스택 트레이스의 개행을 실제 줄바꿈으로 푼다', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'daily-log-'))
+  const stdout = captureStdout()
+  const stream = createDailyLogStream({
+    logDirectory: directory,
+    now: () => new Date(2026, 7, 11, 4, 5, 6),
+    stdout: stdout.stream,
+  })
+
+  const record = { level: 50, msg: 'unhandled error', err: { stack: 'Error: boom\n    at foo (a.ts:1:1)' } }
+  stream.end(`${JSON.stringify(record)}\n`)
+  await finished(stream)
+
+  const fileText = await readFile(join(directory, 'daily-api.log'), 'utf8')
+  expect(fileText).toBe(
+    '2026-08-11 04:05:06 ERROR unhandled error {"err":{"stack":"Error: boom\n    at foo (a.ts:1:1)"}}\n',
+  )
+  expect(stdout.text()).toBe(fileText)
+})
+
+it('사용자가 입력한 역슬래시 n 두 글자는 줄바꿈으로 바꾸지 않는다', () => {
+  expect(stringifyWithNewlines({ memo: '가계부\\n메모' })).toBe('{"memo":"가계부\\\\n메모"}')
+  expect(stringifyWithNewlines({ memo: '가계부\n메모' })).toBe('{"memo":"가계부\n메모"}')
 })
 
 it('날짜가 바뀌면 직전 당일 파일의 이름을 바꾼다', async () => {

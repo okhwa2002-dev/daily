@@ -14,6 +14,9 @@ const LEVEL_LABELS: Record<number, string> = {
 // 시각은 now()로 직접 찍으므로 pino의 time은 쓰지 않는다.
 const RENDERED_KEYS = new Set(['level', 'msg', 'time', 'pid', 'hostname'])
 
+/** 개행 자리를 잠시 대신할 사설 영역(U+E000) 문자. */
+const NEWLINE_MARK = String.fromCharCode(0xe000)
+
 const pad = (value: number) => String(value).padStart(2, '0')
 
 export function formatLogTimestamp(date: Date): string {
@@ -33,6 +36,31 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export function dailyLogFilename(date: Date, today: Date): string {
   return isSameDay(date, today) ? ACTIVE_FILENAME : `daily-api-${formatDateForFilename(date)}.log`
+}
+
+/** 문자열 값 안의 실제 개행만 표시자로 바꾼다. 다른 타입은 그대로 둔다. */
+function markNewlines(value: unknown): unknown {
+  if (typeof value === 'string') return value.replaceAll('\n', NEWLINE_MARK)
+  if (Array.isArray(value)) return value.map(markNewlines)
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, markNewlines(item)]),
+    )
+  }
+  return value
+}
+
+/**
+ * 남은 필드를 JSON으로 직렬화하되 값 안의 개행은 실제 줄바꿈으로 남긴다.
+ * `JSON.stringify`는 개행을 `\n` 두 글자로 escape해서 스택 트레이스가 한 줄에
+ * 뭉개진다.
+ *
+ * 직렬화된 결과에서 `\n`을 일괄 치환하지 않는 이유는, 사용자가 입력한 `\n`
+ * 두 글자(escape되어 `\\n`이 된 것)까지 줄바꿈으로 바뀌기 때문이다. 직렬화
+ * 전에 진짜 개행만 표시해 두면 그 구분이 유지된다.
+ */
+export function stringifyWithNewlines(value: unknown): string {
+  return JSON.stringify(markNewlines(value)).replaceAll(NEWLINE_MARK, '\n')
 }
 
 export interface DailyLogStreamOptions {
@@ -103,7 +131,7 @@ export function createDailyLogStream(options: DailyLogStreamOptions): Writable {
     const rest = Object.fromEntries(
       Object.entries(parsed).filter(([key]) => !RENDERED_KEYS.has(key)),
     )
-    const restText = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : ''
+    const restText = Object.keys(rest).length > 0 ? ` ${stringifyWithNewlines(rest)}` : ''
     return `${timestamp} ${level} ${message}${restText}\n`
   }
 

@@ -174,14 +174,25 @@ export async function deleteCategory(userId: number, clientUuid: string): Promis
  *
  * 이미 하나라도 있으면 아무것도 하지 않는다. 매번 만들면 다른 기기에서
  * 삭제한 기본 카테고리가 되살아난다.
+ *
+ * **검사와 생성은 한 트랜잭션 안에서 끝낸다.** 나눠 놓으면 두 호출이 겹칠 때
+ * 둘 다 "아직 없음"을 보고 각자 한 벌씩 만든다 — StrictMode의 이중 마운트가
+ * 이걸 매번 일으킨다. IndexedDB가 같은 스토어의 rw 트랜잭션을 직렬화하므로,
+ * 같은 트랜잭션으로 묶으면 뒤늦은 호출은 이미 만들어진 것을 보고 물러난다.
+ *
+ * 트랜잭션 안에서는 Dexie 외의 프로미스를 기다리지 않는다. 기다리는 순간
+ * 트랜잭션이 먼저 커밋되어 이 보호가 사라진다.
  */
 export const DEFAULT_CATEGORY_NAMES = ['식비', '교통', '생활', '여가', '기타'] as const
 
 export async function ensureDefaultCategories(userId: number): Promise<void> {
-  const existing = await db.expenseCategories.where('userId').equals(userId).count()
-  if (existing > 0) return
+  await db.transaction('rw', db.expenseCategories, db.outbox, async () => {
+    const existing = await db.expenseCategories.where('userId').equals(userId).count()
+    if (existing > 0) return
 
-  for (const name of DEFAULT_CATEGORY_NAMES) {
-    await saveCategory(userId, name)
-  }
+    for (const name of DEFAULT_CATEGORY_NAMES) {
+      // saveCategory가 여는 트랜잭션은 같은 스토어를 쓰므로 이 트랜잭션에 합류한다.
+      await saveCategory(userId, name)
+    }
+  })
 }

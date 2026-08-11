@@ -116,6 +116,14 @@ describe('카테고리', () => {
     expect(await listCategories(USER)).toHaveLength(DEFAULT_CATEGORY_NAMES.length - 1)
   })
 
+  it('동시에 두 번 호출해도 기본 세트는 한 벌만 생긴다', async () => {
+    // StrictMode는 마운트 이펙트를 두 번 돌린다. 두 호출이 겹치면 둘 다
+    // count 0을 보고 각자 한 벌씩 만든다 — 화면에 같은 이름이 두 번 뜬다.
+    await Promise.all([ensureDefaultCategories(USER), ensureDefaultCategories(USER)])
+
+    expect(await listCategories(USER)).toHaveLength(DEFAULT_CATEGORY_NAMES.length)
+  })
+
   it('같은 이름을 여러 개 만들 수 있다 — 유니크 제약을 걸지 않는다', async () => {
     // 두 기기에서 오프라인으로 같은 이름을 만들면 제약 위반이 400(영구 실패)이
     // 되어 사용자 입력이 큐에서 버려진다. 중복은 화면에서 다룬다.

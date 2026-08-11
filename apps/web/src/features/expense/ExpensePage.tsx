@@ -41,9 +41,12 @@ export default function ExpensePage() {
   )
   const categories = useLiveQuery(() => listCategories(userId), [userId], [])
 
+  // 초기 동기화가 끝난 뒤에 만든다. 새 기기의 로컬은 비어 있으므로, pull 전에
+  // 만들면 서버에 이미 있는 같은 이름이 다른 UUID로 내려와 목록이 두 벌이 된다.
+  // 그 중복은 서버까지 올라가 다른 기기로도 퍼진다.
   useEffect(() => {
-    if (userId) void ensureDefaultCategories(userId)
-  }, [userId])
+    if (userId && initialSyncDone) void ensureDefaultCategories(userId)
+  }, [userId, initialSyncDone])
 
   const categoryName = new Map(categories.map((c) => [c.clientUuid, c.name]))
 

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -47,7 +48,31 @@ describe('지출 화면', () => {
     await waitFor(async () => {
       expect(await db.expenseCategories.count()).toBe(5)
     })
-    expect(screen.getByRole('option', { name: '식비' })).toBeInTheDocument()
+    // 다섯 건이 한 트랜잭션에서 커밋되므로 liveQuery 반영을 기다린다.
+    expect(await screen.findByRole('option', { name: '식비' })).toBeInTheDocument()
+  })
+
+  it('StrictMode에서 이중 마운트해도 카테고리가 한 벌만 생긴다', async () => {
+    render(<StrictMode><ExpensePage /></StrictMode>)
+
+    await waitFor(async () => {
+      expect(await db.expenseCategories.count()).toBe(DEFAULT_CATEGORY_NAMES.length)
+    })
+    // 이름이 두 번씩 뜨면 사용자는 어느 쪽을 골라야 할지 알 수 없다.
+    expect(await screen.findAllByRole('option', { name: '식비' })).toHaveLength(1)
+  })
+
+  it('초기 동기화 전에는 기본 카테고리를 만들지 않는다', async () => {
+    // 새 기기에서 로컬은 비어 있다. pull 전에 만들면 서버에 이미 있는 같은
+    // 이름이 다른 UUID로 내려와 목록이 두 벌이 된다.
+    useSync.setState({ initialSyncDone: false })
+    render(<ExpensePage />)
+
+    await screen.findByLabelText('금액')
+    expect(await db.expenseCategories.count()).toBe(0)
+
+    useSync.setState({ initialSyncDone: true })
+    await categoriesReady()
   })
 
   it('입력한 지출이 목록과 합계에 반영된다', async () => {
@@ -123,7 +148,6 @@ describe('지출 화면', () => {
     useSync.setState({ initialSyncDone: false })
     render(<ExpensePage />)
     expect(screen.getByText('기록을 불러오는 중입니다…')).toBeInTheDocument()
-    await categoriesReady()
   })
 
   it('다른 날짜를 고르면 그 날의 기록만 보여준다', async () => {

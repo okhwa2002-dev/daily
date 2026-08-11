@@ -42,3 +42,6 @@ Thumbs.db
 
 # 에이전트 작업 스크래치 (브리프·보고서·리뷰·diff)
 .superpowers/
+
+# Git worktrees created for isolated feature implementation
+.worktrees/

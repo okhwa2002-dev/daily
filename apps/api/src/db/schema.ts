@@ -3,6 +3,7 @@ import {
   bigint, bigserial, check, date, index, integer, jsonb, numeric, pgTable,
   text, timestamp, uniqueIndex, uuid, type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
+import { columnComments } from './column-comments.ts'
 import {
   BODY_PART, BOOK_STATUS, EXPENSE_KIND, INTENSITY, MEAL_SLOT, PORTION,
   USER_STATUS, WORKOUT_KIND, type WorkoutSet,
@@ -42,6 +43,28 @@ const syncColumns = {
   syncedAt: timestamp('synced_at', { mode: 'string' }).notNull(),
 }
 
+/**
+ * 공유 컬럼의 DB 코멘트.
+ *
+ * 컬럼 정의를 스프레드하듯 코멘트도 스프레드한다. 두 스프레드가 같은 자리에
+ * 오므로 컬럼과 코멘트가 따로 놀지 않는다. 실제 `COMMENT ON`은 각 테이블 아래의
+ * `columnComments(...)`가 만들고, `db:comments`가 DB에 반영한다.
+ */
+const AUDIT_COMMENTS = {
+  createdAt: '등록 일시 (KST 로컬 시각)',
+  createdBy: '등록자 user_id. 행위자가 없으면 시스템 sentinel 0',
+  updatedAt: '수정 일시 (KST). 동기화 last-write-wins 판정 기준',
+  updatedBy: '수정자 user_id',
+  deletedAt: '소프트 삭제 일시. NULL이면 정상 행이며 물리 삭제는 하지 않는다',
+  deletedBy: '삭제자 user_id',
+} as const
+
+const SYNC_COMMENTS = {
+  clientUuid: '동기화 식별자. 클라이언트가 오프라인에서 생성하며 (user_id, client_uuid)로 유일하다',
+  userId: '소유자 user_id. 모든 조회·수정·삭제 쿼리에 이 조건을 건다',
+  syncedAt: 'pull 커서. 서버가 직접 찍으며 클라이언트 값을 쓰지 않는다',
+} as const
+
 // ---------------------------------------------------------------------------
 // 계정
 // ---------------------------------------------------------------------------
@@ -69,6 +92,19 @@ export const users = pgTable('users', {
   check('users_login_id_ck', sql`${t.loginId} ~ '^[a-z0-9_]{4,20}$'`),
 ])
 
+export const usersComments = columnComments(users, {
+  id: '사용자 내부 식별자',
+  loginId: '로그인 식별자. 영문·숫자·밑줄 4~20자를 소문자로 정규화해 저장한다',
+  email: '가입 시 필수. 로그인에는 쓰지 않으며 비밀번호 분실 시 계정을 되찾을 유일한 수단이다',
+  passwordHash: 'argon2id 해시. 평문이나 역산 가능한 형태로 저장하지 않는다',
+  emailVerifiedAt: '이메일 인증 완료 일시. NULL이면 미인증',
+  emailVerifiedBy: '인증을 처리한 user_id',
+  status: '계정 상태 — ACTIVE | SUSPENDED | PENDING_DELETION',
+  deletionRequestedAt: '탈퇴 요청 일시. 유예 후 실제 파기·비식별화로 이어진다',
+  deletionRequestedBy: '탈퇴를 요청한 user_id',
+  ...AUDIT_COMMENTS,
+})
+
 export const refreshTokens = pgTable('refresh_tokens', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   userId: bigint('user_id', { mode: 'number' }).notNull(),
@@ -77,13 +113,24 @@ export const refreshTokens = pgTable('refresh_tokens', {
   revokedAt: timestamp('revoked_at', { mode: 'string' }),
   /** 폐기한 주체. 사용자 로그아웃과 재사용 탐지에 의한 시스템 폐기(0)를 구분한다 */
   revokedBy: bigint('revoked_by', { mode: 'number' }),
-  /** 로테이션 체인 추적 — 이 토큰이 어떤 토큰을 대체했는지 */
+  /** 로테이션 체인 추적 — 이 토큰을 대체한 토큰의 id (rotate가 옛 행에 새 id를 넣는다) */
   replacedBy: bigint('replaced_by', { mode: 'number' }),
   ...auditColumns,
 }, (t) => [
   uniqueIndex('refresh_tokens_hash_uq').on(t.tokenHash),
   index('refresh_tokens_user_idx').on(t.userId),
 ])
+
+export const refreshTokensComments = columnComments(refreshTokens, {
+  id: '리프레시 토큰 내부 식별자',
+  userId: '토큰 소유자 user_id',
+  tokenHash: '토큰 해시. 원문은 저장하지 않는다',
+  expiresAt: '만료 일시',
+  revokedAt: '폐기 일시. NULL이면 유효',
+  revokedBy: '폐기 주체. 사용자 로그아웃과 재사용 탐지에 의한 시스템 폐기(0)를 구분한다',
+  replacedBy: '로테이션 체인 추적 — 이 토큰을 대체한 토큰의 id',
+  ...AUDIT_COMMENTS,
+})
 
 export const passwordResetTokens = pgTable('password_reset_tokens', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -94,6 +141,16 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   usedBy: bigint('used_by', { mode: 'number' }),
   ...auditColumns,
 }, (t) => [uniqueIndex('password_reset_tokens_hash_uq').on(t.tokenHash)])
+
+export const passwordResetTokensComments = columnComments(passwordResetTokens, {
+  id: '비밀번호 재설정 토큰 내부 식별자',
+  userId: '토큰 소유자 user_id',
+  tokenHash: '토큰 해시. 원문은 저장하지 않는다',
+  expiresAt: '만료 일시',
+  usedAt: '사용 일시. 채워지면 재사용할 수 없다',
+  usedBy: '사용한 user_id',
+  ...AUDIT_COMMENTS,
+})
 
 /**
  * 인증 '전' 이벤트를 기록하므로 감사 컬럼(`_by`)을 갖지 않는다.
@@ -110,6 +167,14 @@ export const loginAttempts = pgTable('login_attempts', {
   index('login_attempts_login_id_idx').on(t.loginId, t.attemptedAt),
   check('login_attempts_succeeded_ck', sql`${t.succeeded} IN ('Y', 'N')`),
 ])
+
+export const loginAttemptsComments = columnComments(loginAttempts, {
+  id: '로그인 시도 내부 식별자',
+  loginId: '시도한 아이디. 존재하지 않는 계정일 수 있어 FK를 걸지 않는다',
+  ip: '시도한 클라이언트 IP. 스로틀링 키로 쓴다',
+  succeeded: '성공 여부 — Y | N',
+  attemptedAt: '시도 일시 (KST). 반복 실패 제한의 기준 시각',
+})
 
 // ---------------------------------------------------------------------------
 // 지출
@@ -132,6 +197,13 @@ export const expenseCategories = pgTable('expense_categories', {
   index('expense_categories_pull_idx').on(t.userId, t.syncedAt, t.id),
 ])
 
+export const expenseCategoriesComments = columnComments(expenseCategories, {
+  id: '카테고리 내부 식별자',
+  ...SYNC_COMMENTS,
+  name: '카테고리 이름. 유니크 제약을 걸지 않으므로 같은 이름이 여러 건일 수 있다',
+  ...AUDIT_COMMENTS,
+})
+
 export const expenses = pgTable('expenses', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   ...syncColumns,
@@ -153,6 +225,18 @@ export const expenses = pgTable('expenses', {
   // 부호는 kind가 가진다. 음수 금액을 허용하면 INCOME -1000의 의미가 모호해진다.
   check('expenses_amount_ck', sql`${t.amount} >= 0`),
 ])
+
+export const expensesComments = columnComments(expenses, {
+  id: '지출 내부 식별자',
+  ...SYNC_COMMENTS,
+  occurredOn: '기록 대상 날짜. 시각 컬럼으로 날짜를 판단하지 않는다',
+  kind: '수입/지출 구분 — INCOME | EXPENSE',
+  amount: '금액. 부호는 kind가 가지므로 항상 0 이상이다',
+  categoryId: '카테고리 FK. 서버가 category_client_uuid로 찾아 채운다. 미분류면 NULL',
+  categoryClientUuid: '동기화용 부모 참조. 오프라인에서 만든 카테고리는 아직 서버 id가 없다',
+  memo: '사용자 자유 입력',
+  ...AUDIT_COMMENTS,
+})
 
 // ---------------------------------------------------------------------------
 // 운동
@@ -190,6 +274,20 @@ export const workouts = pgTable('workouts', {
     OR ${t.kind} = 'ETC'`),
 ])
 
+export const workoutsComments = columnComments(workouts, {
+  id: '운동 기록 내부 식별자',
+  ...SYNC_COMMENTS,
+  occurredOn: '기록 대상 날짜',
+  kind: '운동 구분 — STRENGTH | CARDIO | ETC. 채워지는 필드가 이 값에 따라 다르다',
+  name: '운동 종목. 사용자 자유 입력 (예: 벤치프레스)',
+  bodyPart: '부위 — CHEST | BACK | LEGS | SHOULDERS | ARMS | CORE | FULL_BODY',
+  sets: '근력 세트 배열. JSONB의 모양은 DB가 막지 못하므로 shared의 zod로 검증한다',
+  durationMin: '유산소 지속 시간(분). CARDIO에서만 채운다',
+  intensity: '강도 — LOW | MID | HIGH',
+  memo: '사용자 자유 입력',
+  ...AUDIT_COMMENTS,
+})
+
 // ---------------------------------------------------------------------------
 // 식사
 // ---------------------------------------------------------------------------
@@ -214,6 +312,17 @@ export const meals = pgTable('meals', {
   check('meals_calories_ck', sql`${t.calories} IS NULL OR ${t.calories} >= 0`),
 ])
 
+export const mealsComments = columnComments(meals, {
+  id: '식사 기록 내부 식별자',
+  ...SYNC_COMMENTS,
+  occurredOn: '기록 대상 날짜',
+  slot: '끼니 — BREAKFAST | LUNCH | DINNER | SNACK',
+  description: '먹은 것. 사용자 자유 입력',
+  portion: '양 — LIGHT | NORMAL | HEAVY',
+  calories: '열량(kcal). 수동 입력이며 음식명 기반 자동 계산은 하지 않는다',
+  ...AUDIT_COMMENTS,
+})
+
 // ---------------------------------------------------------------------------
 // 일기 — 하루 1건
 // ---------------------------------------------------------------------------
@@ -236,6 +345,15 @@ export const journals = pgTable('journals', {
     .where(sql`${t.deletedAt} IS NULL`),
   index('journals_pull_idx').on(t.userId, t.syncedAt, t.id),
 ])
+
+export const journalsComments = columnComments(journals, {
+  id: '일기 내부 식별자',
+  ...SYNC_COMMENTS,
+  clientUuid: '동기화 식별자. 하루 1건이므로 uuidv5(user_id + occurred_on)로 결정론적으로 만든다',
+  occurredOn: '기록 대상 날짜. 살아있는 행 기준 하루 1건이다',
+  content: '일기 본문. 로그로 출력하지 않는다',
+  ...AUDIT_COMMENTS,
+})
 
 // ---------------------------------------------------------------------------
 // 독서
@@ -263,6 +381,18 @@ export const books = pgTable('books', {
     OR ${t.finishedOn} >= ${t.startedOn}`),
 ])
 
+export const booksComments = columnComments(books, {
+  id: '책 내부 식별자',
+  ...SYNC_COMMENTS,
+  title: '책 제목',
+  author: '저자',
+  summary: '책 내용·줄거리. 사용자 감상은 book_notes에 쌓인다',
+  status: '읽기 상태 — READING | DONE | WISHLIST',
+  startedOn: '읽기 시작한 날',
+  finishedOn: '다 읽은 날. started_on보다 앞설 수 없다',
+  ...AUDIT_COMMENTS,
+})
+
 /**
  * 감상평 — 책당 여러 개. `occurred_on`이 있어 오늘 화면과 캘린더에도 나타난다.
  *
@@ -286,3 +416,37 @@ export const bookNotes = pgTable('book_notes', {
   index('book_notes_book_idx').on(t.userId, t.bookId),
   index('book_notes_pull_idx').on(t.userId, t.syncedAt, t.id),
 ])
+
+export const bookNotesComments = columnComments(bookNotes, {
+  id: '감상평 내부 식별자',
+  ...SYNC_COMMENTS,
+  occurredOn: '기록 대상 날짜. 오늘 화면과 캘린더에도 나타난다',
+  bookId: '책 FK. 존재만 보장하므로 같은 소유자인지는 서비스 계층이 user_id로 확인한다',
+  bookClientUuid: '동기화용 부모 참조. 서버가 (user_id, book_client_uuid)로 book_id를 확정한다',
+  content: '감상평 본문. 로그로 출력하지 않는다',
+  ...AUDIT_COMMENTS,
+})
+
+// ---------------------------------------------------------------------------
+// 코멘트 집계
+// ---------------------------------------------------------------------------
+
+/**
+ * 모든 테이블의 `COMMENT ON COLUMN` 문. `db:comments`가 이 목록을 실행한다.
+ *
+ * 테이블을 새로 만들면 여기에도 추가해야 한다. 빠뜨리면 column-comments 테스트가
+ * 잡는다 — 새 테이블만 코멘트 없이 남는 것이 이 목록의 유일한 실패 방식이다.
+ */
+export const ALL_COLUMN_COMMENTS: readonly string[] = [
+  ...usersComments,
+  ...refreshTokensComments,
+  ...passwordResetTokensComments,
+  ...loginAttemptsComments,
+  ...expenseCategoriesComments,
+  ...expensesComments,
+  ...workoutsComments,
+  ...mealsComments,
+  ...journalsComments,
+  ...booksComments,
+  ...bookNotesComments,
+]

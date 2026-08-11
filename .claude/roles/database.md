@@ -121,6 +121,39 @@ pull 커서는 `(synced_at, id)` 복합이다. 같은 시각에 저장된 행이
 
 ---
 
+## 컬럼 코멘트
+
+**모든 컬럼에 DB 코멘트(`COMMENT ON COLUMN`)를 단다.**
+
+drizzle에는 코멘트 API가 없어 `pgTable` 안에서 표현할 수 없다. 그래서 각 테이블 정의 **바로 아래**에 `columnComments(테이블, { ... })`로 선언한다. 공통 컬럼은 `AUDIT_COMMENTS`·`SYNC_COMMENTS`를 스프레드해 컬럼 정의와 같은 모양을 유지한다.
+
+```ts
+export const expenses = pgTable('expenses', { /* … */ }, (t) => [ /* … */ ])
+
+export const expensesComments = columnComments(expenses, {
+  id: '지출 내부 식별자',
+  ...SYNC_COMMENTS,
+  amount: '금액. 부호는 kind가 가지므로 항상 0 이상이다',
+  // …
+  ...AUDIT_COMMENTS,
+})
+```
+
+- 맵의 키 타입이 그 테이블의 컬럼으로 고정된다. **컬럼을 추가하고 코멘트를 빠뜨리면 컴파일이 깨진다.** 이 강제가 없으면 코멘트는 한 번 달고 그대로 썩는다.
+- 새 테이블은 `ALL_COLUMN_COMMENTS`에도 추가한다. 빠뜨리면 `column-comments.test.ts`가 잡는다.
+- 코드성 컬럼은 코멘트에 값 목록을 적는다 (`'끼니 — BREAKFAST | LUNCH | DINNER | SNACK'`).
+
+### 반영
+
+```bash
+pnpm --filter api db:migrate    # 스키마
+pnpm --filter api db:comments   # 코멘트
+```
+
+**배포는 이 두 단계다.** 코멘트는 마이그레이션 체계 밖에 있다 — 넣으려면 drizzle 내부 파일인 `meta/_journal.json`을 손으로 편집해야 하고, 그건 다음 `db:generate`와 어긋날 여지가 있다. `COMMENT ON`은 본래 덮어쓰기라 몇 번 실행해도 결과가 같다.
+
+---
+
 ## 코드성 데이터
 
 상태·구분·유형처럼 **정해진 값 집합에서 고르는 데이터는 값을 대문자로 관리한다.**

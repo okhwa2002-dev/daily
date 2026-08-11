@@ -21,6 +21,9 @@ const schema = z.object({
   // 빈 문자열일 때만 false가 되는데 아무도 그렇게 쓰지 않는다. 'true'/'false'
   // 문자열만 허용하고 명시적으로 변환한다.
   COOKIE_SECURE: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  // 일자별 API 로그를 쌓을 디렉터리. 기본값은 로컬 개발 기준 경로이고, 운영
+  // 서버(Linux)는 .env에서 절대경로로 덮어쓴다. 없으면 기동 시 만든다.
+  LOG_DIR: z.string().min(1).default('D:\\workspace\\ok2020\\log\\daily'),
 }).superRefine((v, ctx) => {
   // 테스트 실행인데 테스트 DB가 지정되지 않았다면 즉시 죽는다.
   // 조용히 개발 DB로 붙으면 resetDb()가 개발 데이터를 TRUNCATE한다.

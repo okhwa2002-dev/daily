@@ -37,9 +37,17 @@ it('logQuery는 마스킹된 파라미터를 공용 로거로 넘긴다', () => 
   createQueryLogger().logQuery('select id from users where email = $1', ['user@example.com'])
 
   expect(debug).toHaveBeenCalledWith(
-    { sql: 'select id from users where email = $1', params: ['u***@example.com'] },
-    'db query',
+    { params: ['u***@example.com'] },
+    'select id from users where email = $1',
   )
+})
+
+it('SQL은 메시지 자리로 보내 따옴표가 escape되지 않게 한다', () => {
+  const sql = 'select "id" from "users" where "users"."login_id" = $1'
+  createQueryLogger().logQuery(sql, ['qlogtest'])
+
+  // 메시지는 렌더러가 그대로 출력하므로 여기서 escape가 없어야 최종 로그도 깨끗하다.
+  expect(debug).toHaveBeenCalledWith({ params: ['qlogtest'] }, sql)
 })
 
 it('테스트 환경에서는 쿼리 로깅이 꺼져 있다', () => {

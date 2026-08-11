@@ -39,7 +39,10 @@ export function maskQueryParams(params: unknown[]): unknown[] {
 export function createQueryLogger(): DrizzleLogger {
   return {
     logQuery(query, params) {
-      appLogger?.debug({ sql: query, params: maskQueryParams(params) }, 'db query')
+      // SQL은 남은 필드가 아니라 메시지 자리에 넣는다. 필드로 넣으면 JSON
+      // 직렬화를 거치면서 Postgres가 식별자를 감싼 따옴표가 전부 \"로 escape돼
+      // 읽을 수 없게 된다. 메시지는 렌더러가 그대로 출력한다.
+      appLogger?.debug({ params: maskQueryParams(params) }, query)
     },
   }
 }

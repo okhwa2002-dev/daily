@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      // prompt 모드는 새 SW를 활성화시키려면 virtual:pwa-register를 임포트해
+      // onNeedRefresh/updateSW(true)를 호출하는 UI가 있어야 하는데, 이 앱에는 없다.
+      // 그 결과 새 SW가 waiting 상태에 머물러 앱이 스스로 갱신되지 못하고,
+      // SCHEMA_VERSION이 올라가 서버가 426으로 막아도 캐시된 구버전 셸이 계속 내려간다.
+      // autoUpdate는 새 SW가 즉시 skipWaiting으로 인계받게 해 다음 로드에서 새 셸을 받게 한다.
+      registerType: 'autoUpdate',
       manifest: {
         name: 'Daily',
         short_name: 'Daily',

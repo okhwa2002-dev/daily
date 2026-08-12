@@ -68,8 +68,9 @@
 
 **Files:**
 - Modify: `apps/api/src/db/schema.ts`
+- Modify: `apps/api/src/db/testing.ts` (`resetDb`가 코드 테이블을 건너뛰게)
 - Create: `apps/api/drizzle/<생성된 이름>.sql` (drizzle-kit이 만들고, 시드 SQL을 손으로 덧붙인다)
-- Test: `apps/api/src/db/schema.test.ts`
+- Test: `apps/api/src/db/schema.test.ts`, `apps/api/src/db/code-seed.db.test.ts`
 
 **Interfaces:**
 - Consumes: 같은 파일의 `auditColumns`, `AUDIT_COMMENTS`, `columnComments`
@@ -239,15 +240,38 @@ ON CONFLICT ("group_code", "code") DO NOTHING;
 - [ ] **Step 7: 마이그레이션과 코멘트를 반영한다**
 
 ```bash
-pnpm --filter api db:migrate
+pnpm db:setup
 pnpm --filter api db:comments
 ```
 
 Expected: 둘 다 성공. `db:comments`는 반영 건수를 출력한다.
 
-- [ ] **Step 8: 시드가 들어갔는지 DB로 확인한다**
+**`pnpm --filter api db:migrate`가 아니라 루트의 `pnpm db:setup`이다.** `drizzle.config.ts`는 `DATABASE_URL`(개발 DB)만 가리키므로 `db:migrate` 단독으로는 테스트 DB에 새 테이블이 생기지 않는다. `db:setup`이 개발 DB와 `DATABASE_URL_TEST` 양쪽에 같은 마이그레이션을 적용한다. 빠뜨리면 이후 모든 DB 테스트가 "relation does not exist"로 죽는다.
 
-**새 파일 `apps/api/src/db/code-seed.db.test.ts`에 만든다.** 기존 DB 테스트 파일에 넣으면 안 된다 — 그쪽 `beforeEach`의 `resetDb()`가 `TRUNCATE ... CASCADE`로 모든 테이블을 비우고, 마이그레이션이 넣은 시드는 복구되지 않는다. 이 파일에서는 **`resetDb()`를 부르지 않는다.**
+- [ ] **Step 8: `resetDb()`가 코드 테이블을 비우지 않게 한다**
+
+`apps/api/src/db/testing.ts`의 `resetDb()`는 `pg_tables`에서 읽어 public 스키마 전부를 `TRUNCATE`한다. 그대로 두면 **마이그레이션이 넣은 코드 시드가 첫 테스트 파일에서 사라지고**, 이후 모든 파일이 코드 없는 DB를 본다. 8개 파일이 `resetDb`를 부르므로 실행 순서와 무관하게 깨진다.
+
+공통코드는 사용자 데이터가 아니라 운영 참조 데이터다. 운영에서 지워지지 않는 것처럼 테스트에서도 남는 것이 맞다. `WHERE`에 한 줄을 더한다.
+
+```ts
+  const { rows } = await db.execute<{ tables: string | null }>(sql`
+    SELECT string_agg(quote_ident(tablename), ', ') AS tables
+      FROM pg_tables
+     WHERE schemaname = 'public'
+       -- 공통코드는 사용자 데이터가 아니라 마이그레이션이 넣는 운영 참조
+       -- 데이터다. 비우면 시드가 첫 TRUNCATE에서 사라지고, 이후 테스트는
+       -- 전부 코드 없는 DB를 보게 된다. 운영에서 지우지 않는 것을 테스트에서도
+       -- 지우지 않는다.
+       AND tablename NOT IN ('code_groups', 'codes')
+  `)
+```
+
+목록을 손으로 관리하는 것은 이 함수가 원래 피하려던 것이지만(원 주석 참고), 여기서는 "비우면 안 되는 테이블"이라는 **의도**를 적는 것이라 자동 수집으로 대체할 수 없다.
+
+- [ ] **Step 9: 시드가 들어갔는지 DB로 확인한다**
+
+**새 파일 `apps/api/src/db/code-seed.db.test.ts`에 만든다.**
 
 ```ts
 describe('공통코드 시드', () => {
@@ -278,15 +302,15 @@ import { codeGroups, codes } from './schema.ts'
 afterAll(async () => { await pool.end() })
 ```
 
-이 테스트는 **마이그레이션이 넣은 시드가 실제로 DB에 있는지**를 본다. 다른 테스트가 `resetDb()`로 테이블을 비우면 이 파일도 함께 깨진다 — vitest가 파일을 병렬로 돌리면 그럴 수 있다. 깨지면 `pnpm --filter api test -- code-seed` 단독으로 다시 돌려 보고, 단독으로는 통과하는데 전체에서만 깨진다면 그 사실을 보고하라. 시드 검증을 통합 스위트에서 신뢰할 수 없다는 뜻이고, 그건 계획이 판단할 문제다.
+이 테스트는 **마이그레이션이 넣은 시드가 실제로 DB에 있는지**를 본다. Step 8이 `resetDb()`에서 코드 테이블을 제외했으므로 다른 파일이 먼저 돌아도 시드가 남아 있다. 전체 스위트에서 깨진다면 Step 8이 반영되지 않은 것이다.
 
-- [ ] **Step 9: 확인하고 커밋한다**
+- [ ] **Step 10: 확인하고 커밋한다**
 
 Run: `pnpm --filter api test`
 Expected: PASS
 
 ```bash
-git add apps/api/src/db/schema.ts apps/api/src/db/schema.test.ts \
+git add apps/api/src/db/schema.ts apps/api/src/db/testing.ts apps/api/src/db/schema.test.ts \
         apps/api/drizzle/
 git add apps/api/src/db/*.test.ts
 git commit -m "feat(api): 공통코드 테이블과 독서 장르 시드
@@ -370,11 +394,11 @@ Expected: PASS
 
 ```bash
 pnpm --filter api db:generate
-pnpm --filter api db:migrate
+pnpm db:setup
 pnpm --filter api db:comments
 ```
 
-생성된 SQL은 `ALTER TABLE "books" ADD COLUMN "genre" text;` 한 줄이어야 한다. 다른 변경이 섞여 있으면 멈추고 보고하라 — Task 1의 마이그레이션이 제대로 반영되지 않았다는 뜻이다.
+`db:setup`이어야 테스트 DB에도 컬럼이 생긴다. 생성된 SQL은 `ALTER TABLE "books" ADD COLUMN "genre" text;` 한 줄이어야 한다. 다른 변경이 섞여 있으면 멈추고 보고하라 — Task 1의 마이그레이션이 제대로 반영되지 않았다는 뜻이다.
 
 - [ ] **Step 6: 커밋**
 
@@ -915,31 +939,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 `import { and, eq } from 'drizzle-orm'`이 파일에 이미 있는지 확인하고, 없으면 더한다.
 
-**주의:** `resetDb()`가 `TRUNCATE ... CASCADE`로 모든 테이블을 비우므로 **시드된 코드도 매 테스트마다 사라진다.** `sync.test.ts`의 `beforeEach`가 `resetDb()`를 부르므로, 위 테스트들이 통과하려면 코드 시드를 다시 넣어야 한다. `beforeEach`에 다음을 추가하라.
-
-```ts
-beforeEach(async () => {
-  await resetDb()
-  await seedBookGenres()   // 아래에 정의
-  app = await buildApp()
-  await app.ready()
-})
-
-/** resetDb가 마이그레이션 시드까지 지우므로 테스트에서 다시 넣는다. */
-async function seedBookGenres() {
-  const now = dbNow()
-  const audit = { createdAt: now, createdBy: 0, updatedAt: now, updatedBy: 0 }
-  await db.insert(codeGroups)
-    .values({ groupCode: 'BOOK_GENRE', name: '독서 장르', ...audit })
-  await db.insert(codes).values(
-    [['NOVEL', '소설'], ['ESSAY', '에세이'], ['HUMANITIES', '인문'],
-     ['SCIENCE', '과학'], ['TECH', '기술'], ['ECONOMY', '경제'], ['ETC', '기타']]
-      .map(([code, name], i) => ({
-        groupCode: 'BOOK_GENRE', code: code!, name: name!, sortOrder: i + 1, ...audit,
-      })),
-  )
-}
-```
+**시드는 따로 심지 않아도 된다.** Task 1이 `resetDb()`에서 `code_groups`·`codes`를 제외했으므로, 마이그레이션이 넣은 장르 코드가 테스트 DB에 그대로 남아 있다. `beforeEach`에 코드를 다시 넣는 헬퍼를 만들지 마라 — 만들면 마이그레이션 시드와 테스트 시드가 두 벌이 되어 어긋난다.
 
 - [ ] **Step 2: 테스트가 실패하는 것을 확인한다**
 

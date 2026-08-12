@@ -66,6 +66,62 @@ const SYNC_COMMENTS = {
 } as const
 
 // ---------------------------------------------------------------------------
+// 공통코드
+// ---------------------------------------------------------------------------
+
+/**
+ * 코드 그룹.
+ *
+ * 도메인 테이블이 아니다 — `user_id`·`client_uuid`·`synced_at`이 없다. 사용자가
+ * 만드는 데이터가 아니라 운영 데이터이고, 동기화 push/pull을 타지 않는다.
+ * 클라이언트에는 전용 `GET /codes`로 내려간다.
+ */
+export const codeGroups = pgTable('code_groups', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  groupCode: text('group_code').notNull(),
+  name: text('name').notNull(),
+  ...auditColumns,
+}, (t) => [
+  uniqueIndex('code_groups_group_code_uq').on(t.groupCode),
+])
+
+export const codeGroupsComments = columnComments(codeGroups, {
+  id: '코드 그룹 내부 식별자',
+  groupCode: '그룹 코드. 대문자 SCREAMING_SNAKE_CASE (예: BOOK_GENRE)',
+  name: '그룹의 관리용 한글 이름',
+  ...AUDIT_COMMENTS,
+})
+
+/**
+ * 코드.
+ *
+ * `name`이 **화면에 그대로 뜨는 한글 라벨이다.** 다른 코드성 데이터는 라벨을
+ * 프론트 상수로 두지만(`STATUS_LABEL`), 공통코드는 배포 없이 코드를 늘리는 것이
+ * 목적이라 라벨도 DB가 갖는다.
+ */
+export const codes = pgTable('codes', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  groupCode: text('group_code').notNull()
+    .references((): AnyPgColumn => codeGroups.groupCode),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  ...auditColumns,
+}, (t) => [
+  uniqueIndex('codes_group_code_uq').on(t.groupCode, t.code),
+  index('codes_group_sort_idx').on(t.groupCode, t.sortOrder),
+])
+
+export const codesComments = columnComments(codes, {
+  id: '코드 내부 식별자',
+  groupCode: '소속 그룹 코드. code_groups.group_code를 참조한다',
+  code: '코드값. 대문자 SCREAMING_SNAKE_CASE (예: NOVEL)',
+  name: '화면에 표시되는 한글 라벨. 이 값이 그대로 사용자에게 보인다',
+  sortOrder: '선택 목록 정렬 순서. 작을수록 앞',
+  ...AUDIT_COMMENTS,
+})
+
+// ---------------------------------------------------------------------------
 // 계정
 // ---------------------------------------------------------------------------
 
@@ -438,6 +494,8 @@ export const bookNotesComments = columnComments(bookNotes, {
  * 잡는다 — 새 테이블만 코멘트 없이 남는 것이 이 목록의 유일한 실패 방식이다.
  */
 export const ALL_COLUMN_COMMENTS: readonly string[] = [
+  ...codeGroupsComments,
+  ...codesComments,
   ...usersComments,
   ...refreshTokensComments,
   ...passwordResetTokensComments,

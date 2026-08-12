@@ -30,6 +30,11 @@ export async function resetDb(): Promise<void> {
     SELECT string_agg(quote_ident(tablename), ', ') AS tables
       FROM pg_tables
      WHERE schemaname = 'public'
+       -- 공통코드는 사용자 데이터가 아니라 마이그레이션이 넣는 운영 참조
+       -- 데이터다. 비우면 시드가 첫 TRUNCATE에서 사라지고, 이후 테스트는
+       -- 전부 코드 없는 DB를 보게 된다. 운영에서 지우지 않는 것을 테스트에서도
+       -- 지우지 않는다.
+       AND tablename NOT IN ('code_groups', 'codes')
   `)
   const tables = rows[0]?.tables
   if (!tables) return

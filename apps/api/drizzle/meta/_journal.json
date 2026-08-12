@@ -29,6 +29,13 @@
       "when": 1786348971951,
       "tag": "0003_rich_magneto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786516343857,
+      "tag": "0004_curved_kylun",
+      "breakpoints": true
     }
   ]
 }

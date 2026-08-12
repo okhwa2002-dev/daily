@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { eq, getTableColumns } from 'drizzle-orm'
 import { db, pool } from './pool.ts'
-import { users } from './schema.ts'
+import { codeGroups, codes, users } from './schema.ts'
 import { dbNow } from './time.ts'
 import { resetDb } from './testing.ts'
 
@@ -67,5 +67,38 @@ describe('users 테이블', () => {
     }
     await db.insert(users).values(values)
     await expect(db.insert(users).values(values)).rejects.toThrow()
+  })
+})
+
+describe('공통코드 테이블', () => {
+  it('code_groups는 동기화 컬럼을 갖지 않는다', () => {
+    const columns = Object.keys(getTableColumns(codeGroups))
+    // 사용자 데이터가 아니다. user_id를 두면 전역 코드가 사용자별로 갈라진다.
+    expect(columns).not.toContain('userId')
+    expect(columns).not.toContain('clientUuid')
+    expect(columns).not.toContain('syncedAt')
+  })
+
+  it('codes는 동기화 컬럼을 갖지 않는다', () => {
+    const columns = Object.keys(getTableColumns(codes))
+    expect(columns).not.toContain('userId')
+    expect(columns).not.toContain('clientUuid')
+    expect(columns).not.toContain('syncedAt')
+  })
+
+  it('code_groups는 감사 컬럼을 갖는다', () => {
+    const columns = Object.keys(getTableColumns(codeGroups))
+    for (const name of [
+      'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy',
+    ]) {
+      expect(columns).toContain(name)
+    }
+  })
+
+  it('codes는 그룹·코드·라벨·정렬을 갖는다', () => {
+    const columns = Object.keys(getTableColumns(codes))
+    for (const name of ['groupCode', 'code', 'name', 'sortOrder']) {
+      expect(columns).toContain(name)
+    }
   })
 })

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, getTableColumns } from 'drizzle-orm'
 import { db, pool } from './pool.ts'
-import { codeGroups, codes, users } from './schema.ts'
+import { books, codeGroups, codes, users } from './schema.ts'
 import { dbNow } from './time.ts'
 import { resetDb } from './testing.ts'
 
@@ -100,5 +100,15 @@ describe('공통코드 테이블', () => {
     for (const name of ['groupCode', 'code', 'name', 'sortOrder']) {
       expect(columns).toContain(name)
     }
+  })
+})
+
+describe('books.genre', () => {
+  it('장르 컬럼을 갖는다', () => {
+    expect(Object.keys(getTableColumns(books))).toContain('genre')
+  })
+
+  it('장르는 NULL을 허용한다 — 미지정이 정상이다', () => {
+    expect(getTableColumns(books).genre.notNull).toBe(false)
   })
 })

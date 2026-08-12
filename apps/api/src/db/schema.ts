@@ -426,6 +426,15 @@ export const books = pgTable('books', {
   status: text('status').notNull(),
   startedOn: date('started_on', { mode: 'string' }),
   finishedOn: date('finished_on', { mode: 'string' }),
+  /**
+   * 장르 코드값. codes 테이블의 BOOK_GENRE 그룹에 속한다.
+   *
+   * **FK도 CHECK도 걸지 않는다.** 오프라인 기기가 관리자가 방금 지운 코드로
+   * 책을 만들어 push하면 FK 위반이 DB 에러가 되고, 그 500은 REJECTED가 아니라
+   * 재시도 대상이라 그 항목이 큐에서 영원히 빠지지 않는다. 대신 서버가 sync
+   * 페이로드 검증 단계에서 codes와 대조해 REJECTED로 돌려준다.
+   */
+  genre: text('genre'),
   ...auditColumns,
 }, (t) => [
   uniqueIndex('books_client_uuid_uq').on(t.userId, t.clientUuid),
@@ -446,6 +455,7 @@ export const booksComments = columnComments(books, {
   status: '읽기 상태 — READING | DONE | WISHLIST',
   startedOn: '읽기 시작한 날',
   finishedOn: '다 읽은 날. started_on보다 앞설 수 없다',
+  genre: '장르 코드값 (codes의 BOOK_GENRE 그룹). FK를 걸지 않고 서버가 대조 검증한다',
   ...AUDIT_COMMENTS,
 })
 

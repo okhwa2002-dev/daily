@@ -36,6 +36,13 @@
       "when": 1786516343857,
       "tag": "0004_curved_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786517517720,
+      "tag": "0005_bumpy_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

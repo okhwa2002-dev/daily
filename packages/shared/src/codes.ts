@@ -1,3 +1,5 @@
+import { CODE_GROUP } from './common-code.ts'
+
 export const EXPENSE_KIND = ['INCOME', 'EXPENSE'] as const
 export type ExpenseKind = (typeof EXPENSE_KIND)[number]
 
@@ -35,4 +37,5 @@ export const ALL_CODES: readonly string[] = [
   ...EXPENSE_KIND, ...WORKOUT_KIND, ...BODY_PART, ...INTENSITY,
   ...MEAL_SLOT, ...PORTION, ...BOOK_STATUS, ...USER_STATUS,
   ...OUTBOX_OP, ...SYNC_RESULT,
+  ...Object.values(CODE_GROUP),
 ]

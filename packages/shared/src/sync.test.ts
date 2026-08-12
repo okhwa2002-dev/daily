@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookNotePayloadSchema, bookPayloadSchema } from './sync.ts'
+import { bookNotePayloadSchema, bookPayloadSchema, SCHEMA_VERSION } from './sync.ts'
 
 const book = (over: Record<string, unknown> = {}) => ({
   title: '사피엔스', status: 'READING', ...over,
@@ -10,7 +10,7 @@ describe('bookPayloadSchema', () => {
     const parsed = bookPayloadSchema.parse(book())
     expect(parsed).toEqual({
       title: '사피엔스', author: null, summary: null,
-      status: 'READING', startedOn: null, finishedOn: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: null,
     })
   })
 
@@ -51,6 +51,33 @@ describe('bookPayloadSchema', () => {
 
   it('모르는 키를 거부한다', () => {
     expect(bookPayloadSchema.safeParse(book({ userId: 2 })).success).toBe(false)
+  })
+
+  it('장르를 생략하면 null로 채운다', () => {
+    expect(bookPayloadSchema.parse(book()).genre).toBeNull()
+  })
+
+  it('장르 코드값을 그대로 받는다', () => {
+    expect(bookPayloadSchema.parse(book({ genre: 'NOVEL' })).genre).toBe('NOVEL')
+  })
+
+  // 값 집합이 DB에 있으므로 여기서 enum으로 막을 수 없다. 서버가 codes와
+  // 대조해 REJECTED로 돌려준다.
+  it('모르는 코드값도 스키마 단계에서는 통과한다', () => {
+    expect(bookPayloadSchema.safeParse(book({ genre: 'WHATEVER' })).success).toBe(true)
+  })
+
+  it('빈 문자열 장르는 거부한다', () => {
+    expect(bookPayloadSchema.safeParse(book({ genre: '' })).success).toBe(false)
+  })
+})
+
+describe('SCHEMA_VERSION', () => {
+  // books 페이로드에 genre가 추가됐다. 올리지 않으면 구버전 클라이언트가 책을
+  // 수정할 때 genre 없는 페이로드를 보내고, 서버가 null로 덮어 다른 기기에서
+  // 설정한 장르가 조용히 지워진다. LWW라 그 값이 최신이 된다.
+  it('레코드 모양이 바뀌었으므로 3이다', () => {
+    expect(SCHEMA_VERSION).toBe(3)
   })
 })
 

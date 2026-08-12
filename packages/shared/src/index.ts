@@ -1,5 +1,6 @@
 export * from './auth.ts'
 export * from './codes.ts'
+export * from './common-code.ts'
 export * from './datetime.ts'
 export * from './sync.ts'
 export * from './sync-time.ts'

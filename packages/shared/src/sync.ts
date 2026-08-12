@@ -12,7 +12,7 @@ import { BOOK_STATUS, EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult } fr
  * 테이블의 행을 받으면 `APPLIERS[row.table]`이 undefined라 동기화 루프가
  * 통째로 죽는다. 사용자에게는 "기록이 안 올라감"으로만 보인다.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** 한 번에 밀어넣을 수 있는 변경 수. 상한이 없으면 요청 하나가 DB를 오래 잡는다. */
 export const PUSH_MAX_CHANGES = 500
@@ -64,6 +64,13 @@ export const bookPayloadSchema = z.object({
   status: z.enum(BOOK_STATUS),
   startedOn: occurredOnSchema.nullable().default(null),
   finishedOn: occurredOnSchema.nullable().default(null),
+  /**
+   * 장르 코드값 (`codes`의 `BOOK_GENRE` 그룹).
+   *
+   * 값 집합이 DB에 있으므로 `z.enum`으로 막을 수 없다. 형식만 보고, 실제
+   * 코드인지는 서버가 `codes`와 대조해 판정한다 — 모르면 REJECTED다.
+   */
+  genre: z.string().min(1).nullable().default(null),
 }).strict().refine(
   (b) => b.finishedOn === null || b.startedOn === null || b.finishedOn >= b.startedOn,
   // DB의 books_period_ck와 같은 규칙이다. 여기서 막지 않으면 위반 입력이

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult } from './codes.ts'
+import { BOOK_STATUS, EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult } from './codes.ts'
 
 /**
  * push/pull 페이로드의 스키마 버전.
@@ -51,6 +51,34 @@ export const expensePayloadSchema = z.object({
   memo: z.string().max(500).nullable().default(null),
 }).strict()
 export type ExpensePayload = z.infer<typeof expensePayloadSchema>
+
+export const bookPayloadSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  author: z.string().trim().max(100).nullable().default(null),
+  /** 책 내용·줄거리. 사용자 감상은 book_notes에 쌓인다 */
+  summary: z.string().max(2000).nullable().default(null),
+  status: z.enum(BOOK_STATUS),
+  startedOn: occurredOnSchema.nullable().default(null),
+  finishedOn: occurredOnSchema.nullable().default(null),
+}).strict().refine(
+  (b) => b.finishedOn === null || b.startedOn === null || b.finishedOn >= b.startedOn,
+  // DB의 books_period_ck와 같은 규칙이다. 여기서 막지 않으면 위반 입력이
+  // INSERT에서 DB 에러로 죽고, 그 500은 REJECTED가 아니라 재시도 대상이라
+  // 그 항목이 큐에서 영원히 빠지지 않는다.
+  { message: '완독일은 시작일보다 앞설 수 없습니다.', path: ['finishedOn'] },
+)
+export type BookPayload = z.infer<typeof bookPayloadSchema>
+
+export const bookNotePayloadSchema = z.object({
+  occurredOn: occurredOnSchema,
+  /**
+   * 부모 책. 서버가 (user_id, book_client_uuid)로 book_id를 확정한다.
+   * 지출의 카테고리와 달리 선택 항목이 아니다 — book_id가 NOT NULL이다.
+   */
+  bookClientUuid: z.string().uuid(),
+  content: z.string().trim().min(1).max(5000),
+}).strict()
+export type BookNotePayload = z.infer<typeof bookNotePayloadSchema>
 
 // ---------------------------------------------------------------------------
 // push

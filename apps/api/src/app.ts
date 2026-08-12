@@ -8,6 +8,7 @@ import { registerErrorHandler } from './plugins/error-handler.ts'
 import { healthRoutes } from './routes/health.ts'
 import { authRoutes } from './routes/auth.ts'
 import { syncRoutes } from './routes/sync.ts'
+import { codesRoutes } from './routes/codes.ts'
 
 /**
  * 로거는 `logging/logger.ts`가 소유한다. DB 쿼리 로거도 같은 인스턴스를 쓰므로
@@ -60,6 +61,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(healthRoutes, { prefix: '/api' })
   await app.register(authRoutes, { prefix: '/api' })
   await app.register(syncRoutes, { prefix: '/api' })
+  await app.register(codesRoutes, { prefix: '/api' })
 
   return app
 }

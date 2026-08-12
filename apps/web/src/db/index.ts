@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { ExpenseKind, OutboxOp, SyncTable } from '@daily/shared'
+import type { BookStatus, ExpenseKind, OutboxOp, SyncTable } from '@daily/shared'
 
 export interface OutboxRow {
   seq: number
@@ -62,12 +62,31 @@ export interface LocalExpense extends LocalRecord {
   memo: string | null
 }
 
+export interface LocalBook extends LocalRecord {
+  title: string
+  author: string | null
+  /** 책 내용·줄거리. 사용자 감상은 bookNotes에 쌓인다 */
+  summary: string | null
+  status: BookStatus
+  startedOn: string | null
+  finishedOn: string | null
+}
+
+export interface LocalBookNote extends LocalRecord {
+  occurredOn: string
+  /** 부모 책. 로컬 레코드 간 참조는 clientUuid로 한다 */
+  bookClientUuid: string
+  content: string
+}
+
 class DailyDb extends Dexie {
   outbox!: EntityTable<OutboxRow, 'seq'>
   meta!: EntityTable<MetaRow, 'key'>
   expenses!: EntityTable<LocalExpense, 'clientUuid'>
   expenseCategories!: EntityTable<LocalExpenseCategory, 'clientUuid'>
   syncFailures!: EntityTable<SyncFailureRow, 'id'>
+  books!: EntityTable<LocalBook, 'clientUuid'>
+  bookNotes!: EntityTable<LocalBookNote, 'clientUuid'>
 
   constructor() {
     super('daily')
@@ -83,6 +102,12 @@ class DailyDb extends Dexie {
       expenses: 'clientUuid, userId, [userId+occurredOn]',
       expenseCategories: 'clientUuid, userId',
       syncFailures: '++id, clientUuid',
+    })
+    // deletedAt을 인덱스에 넣지 않는 것은 version 2와 같은 이유다 —
+    // IndexedDB가 null을 키로 쓰지 못해 살아있는 레코드가 통째로 빠진다.
+    this.version(3).stores({
+      books: 'clientUuid, userId, [userId+status]',
+      bookNotes: 'clientUuid, userId, bookClientUuid, [userId+occurredOn]',
     })
   }
 }

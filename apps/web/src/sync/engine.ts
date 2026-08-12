@@ -333,3 +333,30 @@ export async function clearLocalData(): Promise<void> {
     await Promise.all(db.tables.map((table) => table.clear()))
   })
 }
+
+/**
+ * 이 기기의 로컬 데이터가 누구 것인지 확정한다. **동기화를 시작하기 전에** 부른다.
+ *
+ * `logoutSafely`만으로는 부족하다. 로그아웃 버튼을 거치지 않고 계정이 바뀌는
+ * 경로가 있다 — 세션 만료, 브라우저 강제 종료, 공용 기기에서 다른 사람이 그냥
+ * 로그인. 그때 앞 사용자의 로컬이 그대로 남으면 두 가지가 무너진다.
+ *
+ * - **아웃박스에는 `userId` 컬럼이 없다.** 앞 사용자의 미전송 변경이 새 사용자의
+ *   토큰으로 올라가 새 사용자의 계정에 기록된다. 화면 조회는 `userId`로 거르므로
+ *   눈에는 안 보이고, 서버에만 남는다.
+ * - **pull 커서도 전역이다.** 앞 사용자의 커서가 남으면 새 사용자의 첫 pull이
+ *   그 지점 이후부터 시작해, 그 이전 기록을 영영 받지 못한다.
+ *
+ * 주인이 적혀 있지 않으면(이 코드가 없던 시절에 만들어진 로컬) **비우지 않고**
+ * 현재 사용자를 주인으로 적는다. 남의 것이라는 근거가 없는데 지우면 정당한
+ * 주인의 미전송 기록을 파괴한다. 그 창은 기기마다 한 번만 열려 있다 — 한 번
+ * 적히고 나면 이후로는 비교가 선다.
+ */
+export async function claimLocalData(userId: number): Promise<void> {
+  const owner = await readMeta(META_KEY.userId)
+  if (owner !== null && owner !== String(userId)) {
+    await clearLocalData()
+  }
+  // clearLocalData가 meta까지 비우므로 새 주인은 반드시 그 뒤에 적는다.
+  await writeMeta(META_KEY.userId, String(userId))
+}

@@ -3,7 +3,7 @@ import { SCHEMA_VERSION, type PullResponse, type PushResponse } from '@daily/sha
 import { db, META_KEY } from '../db/index.ts'
 import { setAccessToken } from '../lib/apiClient.ts'
 import { enqueue, pendingCount, takeBatch } from './outbox.ts'
-import { clearLocalData, resetSyncState, syncNow } from './engine.ts'
+import { claimLocalData, clearLocalData, resetSyncState, syncNow } from './engine.ts'
 
 const USER = 1
 const UUID_A = 'aaaaaaaa-0000-4000-8000-000000000001'
@@ -16,11 +16,9 @@ beforeEach(async () => {
   fetchMock.mockReset()
   setAccessToken('token')
   resetSyncState()
-  await db.outbox.clear()
-  await db.meta.clear()
-  await db.expenses.clear()
-  await db.expenseCategories.clear()
-  await db.syncFailures.clear()
+  // 스토어를 이름으로 나열하면 새 테이블을 추가할 때 빠뜨리고, 그 누락은
+  // "앞 테스트의 행이 다음 테스트로 샌다"는 형태로만 드러난다.
+  await Promise.all(db.tables.map((table) => table.clear()))
 })
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -367,5 +365,51 @@ describe('clearLocalData', () => {
     for (const table of db.tables) {
       expect(await table.count(), `${table.name}이 비지 않았다`).toBe(0)
     }
+  })
+})
+
+describe('claimLocalData', () => {
+  // 로그아웃 없이 계정이 바뀌는 경로가 있다 — 세션 만료, 브라우저 종료,
+  // 다른 사람이 그냥 로그인. 아웃박스에는 userId 컬럼이 없으므로, 비우지 않으면
+  // 앞 사용자의 미전송 변경이 새 사용자의 토큰으로 그 계정에 기록된다.
+  it('주인이 다르면 로컬을 비우고 새 주인을 적는다', async () => {
+    await queueExpense()
+    await db.meta.put({
+      key: META_KEY.lastPulledSyncedAt, value: '2026-08-11 12:00:00.000',
+    })
+    await db.meta.put({ key: META_KEY.userId, value: String(USER) })
+
+    await claimLocalData(2)
+
+    expect(await pendingCount()).toBe(0)
+    expect(await db.expenses.count()).toBe(0)
+    // 커서도 함께 사라져야 한다. 남으면 새 사용자의 첫 pull이 앞 사용자의
+    // 커서 이후부터 시작해, 그 시점 이전 기록을 영영 받지 못한다.
+    expect(await db.meta.get(META_KEY.lastPulledSyncedAt)).toBeUndefined()
+    // clearLocalData가 meta까지 비우므로 새 주인은 반드시 그 뒤에 적혀야 한다.
+    expect((await db.meta.get(META_KEY.userId))?.value).toBe('2')
+  })
+
+  it('주인이 같으면 아무것도 지우지 않는다', async () => {
+    await queueExpense()
+    await db.meta.put({ key: META_KEY.userId, value: String(USER) })
+
+    await claimLocalData(USER)
+
+    expect(await pendingCount()).toBe(1)
+    expect(await db.expenses.count()).toBe(1)
+  })
+
+  // 이 코드가 없던 시절에 만들어진 로컬에는 주인이 적혀 있지 않다. 남의
+  // 것이라는 근거가 없는데 지우면 정당한 주인의 미전송 기록을 파괴한다.
+  // 이 창은 기기마다 한 번만 열려 있다 — 한 번 적히면 이후로는 비교가 선다.
+  it('주인이 적혀 있지 않으면 지우지 않고 현재 사용자를 주인으로 적는다', async () => {
+    await queueExpense()
+
+    await claimLocalData(USER)
+
+    expect(await pendingCount()).toBe(1)
+    expect(await db.expenses.count()).toBe(1)
+    expect((await db.meta.get(META_KEY.userId))?.value).toBe(String(USER))
   })
 })

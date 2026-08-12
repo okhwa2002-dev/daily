@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { isInitialSyncDone, startSync, syncNow, type SyncOutcome } from '../sync/engine.ts'
+import {
+  claimLocalData, isInitialSyncDone, startSync, syncNow, type SyncOutcome,
+} from '../sync/engine.ts'
 
 interface SyncState {
   syncing: boolean
@@ -41,6 +43,9 @@ export const useSync = create<SyncState>((set) => {
 
     start: async (userId) => {
       stopTriggers?.()
+      // 반드시 startSync보다 먼저다. startSync는 첫 push를 즉시 쏘므로, 뒤로
+      // 돌리면 앞 사용자의 큐가 이 사용자의 토큰으로 나간 뒤에 지워진다.
+      await claimLocalData(userId)
       set({ initialSyncDone: await isInitialSyncDone(), syncing: true })
       stopTriggers = startSync(userId, { onOutcome: applyOutcome })
     },

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
+import { kstDate } from '@daily/shared'
 import { db } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
@@ -94,7 +95,38 @@ describe('책 목록', () => {
     await userEvent.type(screen.getByLabelText('제목'), '클린 코드')
     await userEvent.click(screen.getByRole('button', { name: '읽는 중' }))
 
-    const started = screen.getByLabelText('시작일') as HTMLInputElement
-    expect(started.value).not.toBe('')
+    // 값이 뭐라도 채워졌다는 것만으로는 부족하다 — 오늘 날짜인지까지 확인해야
+    // 엉뚱한 값이 들어가도 통과하는 약한 단언이 되지 않는다.
+    expect(screen.getByLabelText('시작일')).toHaveValue(kstDate(new Date()))
+  })
+
+  // pickStatus의 `startedOn === ''` 가드가 하는 일은 "이미 값이 있으면 안
+  // 덮는다"이다. 위 테스트는 빈 값 → 채움 경로만 지나가므로, 이 가드가
+  // 통째로 사라져도(예: 리팩터링 실수) 초록으로 남는다. 아래 두 테스트가
+  // 그 가드를 직접 지킨다.
+  it('시작일을 먼저 채우면 읽는 중을 눌러도 값이 유지된다', async () => {
+    renderPage()
+    await screen.findByText('등록한 책이 없습니다.')
+
+    await userEvent.click(screen.getByRole('button', { name: '+ 책' }))
+    await userEvent.type(screen.getByLabelText('제목'), '클린 코드')
+    await userEvent.type(screen.getByLabelText('시작일'), '2020-01-01')
+
+    await userEvent.click(screen.getByRole('button', { name: '읽는 중' }))
+
+    expect(screen.getByLabelText('시작일')).toHaveValue('2020-01-01')
+  })
+
+  it('완독일을 먼저 채우면 완독을 눌러도 값이 유지된다', async () => {
+    renderPage()
+    await screen.findByText('등록한 책이 없습니다.')
+
+    await userEvent.click(screen.getByRole('button', { name: '+ 책' }))
+    await userEvent.type(screen.getByLabelText('제목'), '클린 코드')
+    await userEvent.type(screen.getByLabelText('완독일'), '2020-01-01')
+
+    await userEvent.click(screen.getByRole('button', { name: '완독' }))
+
+    expect(screen.getByLabelText('완독일')).toHaveValue('2020-01-01')
   })
 })

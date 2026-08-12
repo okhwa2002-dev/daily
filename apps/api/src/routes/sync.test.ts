@@ -1,10 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { SCHEMA_VERSION, type PullResponse, type PushResponse } from '@daily/shared'
 import { buildApp } from '../app.ts'
 import { db, pool } from '../db/pool.ts'
-import { bookNotes, books, expenseCategories, expenses, users } from '../db/schema.ts'
+import { bookNotes, books, codes, expenseCategories, expenses, users } from '../db/schema.ts'
 import { dbNow, padMillis } from '../db/time.ts'
 import { resetDb, testLoginId } from '../db/testing.ts'
 import { issueAccessToken } from '../auth/tokens.ts'
@@ -599,6 +599,80 @@ describe('독서 — 부모-자식 동기화', () => {
   })
   const notePayload = (bookUuid: string, over: Record<string, unknown> = {}) => ({
     occurredOn: TODAY, bookClientUuid: bookUuid, content: '3부가 인상 깊다', ...over,
+  })
+
+  it('유효한 장르 코드는 저장된다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT,
+      payload: bookPayload({ genre: 'NOVEL' }),
+    }])
+
+    expect(body.results[0]?.status).toBe('APPLIED')
+    const [row] = await db.select().from(books)
+    expect(row?.genre).toBe('NOVEL')
+  })
+
+  it('장르 미지정도 저장된다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload(),
+    }])
+
+    expect(body.results[0]?.status).toBe('APPLIED')
+    const [row] = await db.select().from(books)
+    expect(row?.genre).toBeNull()
+  })
+
+  // CONFLICT가 아니다 — 부모를 기다리는 상황이 아니라 영구히 틀린 값이다.
+  // 500도 아니다 — 500은 재시도 대상이라 큐가 영원히 막힌다.
+  it('모르는 장르 코드는 REJECTED다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT,
+      payload: bookPayload({ genre: 'NO_SUCH_GENRE' }),
+    }])
+
+    expect(body.results[0]?.status).toBe('REJECTED')
+    expect(await db.select().from(books)).toHaveLength(0)
+  })
+
+  /**
+   * 관리자가 장르를 지우는 순간 그 장르를 쓰던 사용자의 오프라인 수정이 전부
+   * 버려지면 안 된다. 사용자는 잘못한 것이 없는데 기록을 잃는다.
+   * resolveParentId가 liveOwnedBy가 아니라 ownedBy를 쓰는 것과 같은 판단이다.
+   */
+  it('삭제된 장르 코드도 통과한다', async () => {
+    const now = dbNow()
+    await db.update(codes)
+      .set({ deletedAt: now, deletedBy: 0 })
+      .where(and(eq(codes.groupCode, 'BOOK_GENRE'), eq(codes.code, 'ETC')))
+
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT,
+      payload: bookPayload({ genre: 'ETC' }),
+    }])
+
+    expect(body.results[0]?.status).toBe('APPLIED')
+
+    // 다음 테스트를 위해 되돌린다. 시드 데이터는 resetDb가 복구해 주지 않는다.
+    await db.update(codes)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(and(eq(codes.groupCode, 'BOOK_GENRE'), eq(codes.code, 'ETC')))
+  })
+
+  it('pull 페이로드에 장르가 실린다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT,
+      payload: bookPayload({ genre: 'TECH' }),
+    }])
+    await settle()
+
+    const { body } = await pull(auth)
+    const book = body.changes.find((c) => c.table === 'books')
+    expect(book?.payload.genre).toBe('TECH')
   })
 
   it('같은 배치에서 책이 먼저 오면 감상평의 book_id가 채워진다', async () => {

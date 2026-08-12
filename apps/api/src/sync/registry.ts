@@ -1,13 +1,15 @@
 import type { z } from 'zod'
+import { and, eq } from 'drizzle-orm'
 import {
-  bookNotePayloadSchema, bookPayloadSchema,
+  bookNotePayloadSchema, bookPayloadSchema, CODE_GROUP,
   expenseCategoryPayloadSchema, expensePayloadSchema,
   type BookNotePayload, type BookPayload,
   type ExpenseCategoryPayload, type ExpensePayload, type SyncTable,
 } from '@daily/shared'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { bookNotes, books, expenseCategories, expenses } from '../db/schema.ts'
+import { bookNotes, books, codes, expenseCategories, expenses } from '../db/schema.ts'
 import type { OwnedTable } from '../db/ownership.ts'
+import { db } from '../db/pool.ts'
 
 /** 컬럼명 → 값. 동기화 엔진이 테이블을 모른 채 다루는 단위다. */
 export type ColumnValues = Record<string, unknown>
@@ -46,6 +48,16 @@ export interface SyncTableDef<TPayload = unknown> {
   /** 기록 테이블이면 true. 마스터 데이터(카테고리)는 false */
   hasOccurredOn: boolean
   parent?: ParentRef
+  /**
+   * DB를 봐야 하는 검증. 통과면 `null`, 실패면 사용자에게 보여줄 사유.
+   *
+   * 실패는 **REJECTED**다 — CONFLICT가 아니다. CONFLICT는 "부모가 아직
+   * 안 왔다"이고 재시도로 풀리지만, 여기서 걸리는 값은 재시도해도 계속 틀리다.
+   * 큐에 남기면 그 항목이 영원히 빠지지 않는다.
+   *
+   * zod로 막을 수 없는 것만 여기 온다. 값 집합이 DB에 있는 공통코드가 그렇다.
+   */
+  validate?(payload: TPayload): Promise<string | null>
   /**
    * 검증된 페이로드 → 도메인 컬럼.
    *
@@ -117,6 +129,26 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
     table: books,
     payload: bookPayloadSchema,
     hasOccurredOn: false,
+    /**
+     * 장르가 실제 코드인지 확인한다.
+     *
+     * **`deleted_at`을 보지 않는다 — 존재만 본다.** 살아있는 코드만 통과시키면,
+     * 관리자가 장르 하나를 지우는 순간 그 장르를 쓰던 사용자의 오프라인 수정이
+     * 전부 REJECTED가 되어 버려진다. 사용자는 잘못한 것이 없는데 기록을 잃는다.
+     * `resolveParentId`가 `liveOwnedBy`가 아니라 `ownedBy`를 쓰는 것과 같다.
+     *
+     * 새로 고를 수 없게 막는 것은 화면의 몫이다 — 삭제된 코드는 `GET /codes`에서
+     * 빠지므로 선택 목록에 뜨지 않는다.
+     */
+    validate: async (p: BookPayload) => {
+      if (p.genre === null) return null
+      const [found] = await db.select({ code: codes.code }).from(codes)
+        .where(and(
+          eq(codes.groupCode, CODE_GROUP.BOOK_GENRE),
+          eq(codes.code, p.genre),
+        ))
+      return found ? null : '알 수 없는 장르입니다.'
+    },
     toColumns: (p: BookPayload) => ({
       title: p.title,
       author: p.author,
@@ -124,6 +156,7 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
       status: p.status,
       startedOn: p.startedOn,
       finishedOn: p.finishedOn,
+      genre: p.genre,
     }),
     toPayload: (r) => ({
       title: r.title,
@@ -132,6 +165,7 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
       status: r.status,
       startedOn: r.startedOn,
       finishedOn: r.finishedOn,
+      genre: r.genre,
     }),
   }),
   book_notes: define<BookNotePayload>({

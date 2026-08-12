@@ -134,6 +134,12 @@ async function applyUpsert(
     return { ...base, status: 'CONFLICT', reason: parent.reason }
   }
 
+  // DB를 봐야 하는 검증. 실패는 영구 실패다 — 재시도해도 계속 틀린 값이다.
+  if (def.validate) {
+    const reason = await def.validate(parsed.data)
+    if (reason !== null) return { ...base, status: 'REJECTED', reason }
+  }
+
   const domain = def.toColumns(parsed.data, parent.id)
   const now = dbNow()
 

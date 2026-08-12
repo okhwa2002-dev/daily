@@ -124,6 +124,54 @@ describe('push', () => {
     expect(row?.tryCount).toBe(1)
   })
 
+  it('CONFLICT가 상한을 넘으면 격리하고 큐에서 뺀다', async () => {
+    await queueExpense()
+    // 이 항목은 이미 9번 재시도했다. 이번이 10번째다.
+    const [queued] = await takeBatch(1)
+    await db.outbox.update(queued!.seq, { tryCount: 9 })
+
+    fetchMock
+      .mockResolvedValueOnce(pushOk([{
+        clientUuid: UUID_A, table: 'expenses', status: 'CONFLICT',
+        reason: '부모 레코드가 아직 서버에 없습니다.',
+      }]))
+      .mockResolvedValueOnce(pullEmpty())
+
+    const outcome = await syncNow(USER)
+
+    // 무한 재시도를 끊는다. 큐에 남으면 pendingCount가 영영 0이 되지 않는다.
+    expect(await pendingCount()).toBe(0)
+    expect(outcome.retrying).toBe(0)
+    expect(outcome.rejected).toBe(1)
+
+    // 큐에서 빼되 버리지는 않는다.
+    const failures = await db.syncFailures.toArray()
+    expect(failures).toHaveLength(1)
+    expect(failures[0]?.clientUuid).toBe(UUID_A)
+    expect(failures[0]?.reason).toBe('부모 레코드가 아직 서버에 없습니다.')
+  })
+
+  it('상한 이전의 CONFLICT는 그대로 큐에 남는다', async () => {
+    await queueExpense()
+    const [queued] = await takeBatch(1)
+    await db.outbox.update(queued!.seq, { tryCount: 8 })
+
+    fetchMock
+      .mockResolvedValueOnce(pushOk([{
+        clientUuid: UUID_A, table: 'expenses', status: 'CONFLICT',
+        reason: '부모 레코드가 아직 서버에 없습니다.',
+      }]))
+      .mockResolvedValueOnce(pullEmpty())
+
+    const outcome = await syncNow(USER)
+
+    expect(outcome.retrying).toBe(1)
+    expect(await pendingCount()).toBe(1)
+    expect(await db.syncFailures.count()).toBe(0)
+    const [row] = await takeBatch(1)
+    expect(row?.tryCount).toBe(9)
+  })
+
   it('REJECTED면 큐에서 빼되 버리지 않고 보관한다', async () => {
     await queueExpense()
     fetchMock

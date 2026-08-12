@@ -19,6 +19,18 @@ const PULL_PAGE = 200
  */
 const MAX_PUSH_ROUNDS = 50
 
+/**
+ * CONFLICT 재시도 상한.
+ *
+ * 부모가 REJECTED로 격리되면 자식은 영원히 CONFLICT를 반복한다. 큐에서 빠지지
+ * 않으므로 `pendingCount`가 0이 되지 않고, 로그아웃 경고가 영구히 뜬다.
+ * 사용자에게는 그것을 없앨 방법이 없다.
+ *
+ * push 주기 기준 수 분에 해당한다 — 일시적인 단절로 부모 전송이 밀리는 경우를
+ * 덮기에 충분하고, 영구 실패를 무한정 끌지 않을 만큼 짧다.
+ */
+const MAX_CONFLICT_TRIES = 10
+
 /** 지수 백오프 — 1s → 2s → 4s … 최대 5분 */
 const BACKOFF_BASE_MS = 1000
 const BACKOFF_MAX_MS = 5 * 60 * 1000
@@ -125,8 +137,17 @@ async function pushBatch(userId: number, batch: OutboxRow[]): Promise<BatchOutco
       case 'CONFLICT':
         // 부모가 아직 없다 — "영구 실패"가 아니라 "아직 이르다"다.
         // 실패로 처리해 큐에서 빼면 이 레코드가 영구 소실된다.
-        await markRetry(row.seq, result.reason ?? '부모 레코드를 기다리는 중입니다.')
-        retrying += 1
+        //
+        // 다만 영원히 기다리지는 않는다. 부모가 격리됐다면 이 항목은 다시는
+        // 성공하지 못하고 큐에 눌러앉는다. tryCount는 이번 시도 전의 값이다.
+        if (row.tryCount + 1 >= MAX_CONFLICT_TRIES) {
+          await quarantine(row, result)
+          done.push(row.seq)
+          rejected += 1
+        } else {
+          await markRetry(row.seq, result.reason ?? '부모 레코드를 기다리는 중입니다.')
+          retrying += 1
+        }
         break
 
       case 'REJECTED':

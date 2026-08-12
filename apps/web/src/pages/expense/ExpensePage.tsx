@@ -79,7 +79,7 @@ export default function ExpensePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4 pb-20">
       <header className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">지출</h1>
         <button type="button" onClick={() => void handleLogout()} className="text-sm underline">

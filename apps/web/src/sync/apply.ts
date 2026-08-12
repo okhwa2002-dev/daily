@@ -1,4 +1,4 @@
-import type { ExpenseKind, SyncRow, SyncTable } from '@daily/shared'
+import type { BookStatus, ExpenseKind, SyncRow, SyncTable } from '@daily/shared'
 import { db } from '../db/index.ts'
 
 /**
@@ -57,6 +57,31 @@ const APPLIERS: Record<SyncTable, (userId: number, row: SyncRow) => Promise<void
       deletedAt: r.deletedAt,
     }),
   ),
+
+  books: (userId, row) => applyToTable(db.books, userId, row, (r) => ({
+    clientUuid: r.clientUuid,
+    userId,
+    serverId: r.id,
+    title: String(r.payload.title),
+    author: (r.payload.author as string | null) ?? null,
+    summary: (r.payload.summary as string | null) ?? null,
+    status: r.payload.status as BookStatus,
+    startedOn: (r.payload.startedOn as string | null) ?? null,
+    finishedOn: (r.payload.finishedOn as string | null) ?? null,
+    updatedAt: r.updatedAt,
+    deletedAt: r.deletedAt,
+  })),
+
+  book_notes: (userId, row) => applyToTable(db.bookNotes, userId, row, (r) => ({
+    clientUuid: r.clientUuid,
+    userId,
+    serverId: r.id,
+    occurredOn: String(r.payload.occurredOn),
+    bookClientUuid: String(r.payload.bookClientUuid),
+    content: String(r.payload.content),
+    updatedAt: r.updatedAt,
+    deletedAt: r.deletedAt,
+  })),
 }
 
 /** pull로 받은 변경을 순서대로 반영한다. */
@@ -66,12 +91,30 @@ export async function applyServerRows(userId: number, rows: SyncRow[]): Promise<
   }
 }
 
+/**
+ * 테이블명 → 로컬 스토어.
+ *
+ * 삼항 분기로 두면 새 테이블이 else로 떨어져 **엉뚱한 스토어에** 기록된다.
+ * 대상 레코드의 `serverId`는 null로 남고, `serverId`가 없으면 삭제가 툼스톤으로
+ * 전파되지 않아 지운 레코드가 다른 기기에서 되살아난다.
+ *
+ * `Record<SyncTable, …>`이라 `SYNC_TABLE`에 항목을 더하면 여기가 컴파일
+ * 에러로 따라온다.
+ */
+const SERVER_ID_STORES: Record<SyncTable, {
+  update(key: string, changes: { serverId: number }): Promise<unknown>
+}> = {
+  expenses: db.expenses,
+  expense_categories: db.expenseCategories,
+  books: db.books,
+  book_notes: db.bookNotes,
+}
+
 /** push 응답의 서버 id를 로컬 레코드에 기록한다. */
 export async function recordServerId(
   table: SyncTable,
   clientUuid: string,
   serverId: number,
 ): Promise<void> {
-  const target = table === 'expenses' ? db.expenses : db.expenseCategories
-  await target.update(clientUuid, { serverId })
+  await SERVER_ID_STORES[table].update(clientUuid, { serverId })
 }

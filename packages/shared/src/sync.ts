@@ -8,9 +8,11 @@ import { BOOK_STATUS, EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult } fr
  * 426으로 막고 Service Worker 갱신을 유도한다. 이 방어가 없으면 구버전이
  * 잘못된 모양의 데이터를 계속 밀어 넣는다.
  *
- * **레코드 모양을 바꾸면 이 값을 올린다.**
+ * **레코드 모양을 바꾸거나 테이블을 더하면 이 값을 올린다.** 구버전은 모르는
+ * 테이블의 행을 받으면 `APPLIERS[row.table]`이 undefined라 동기화 루프가
+ * 통째로 죽는다. 사용자에게는 "기록이 안 올라감"으로만 보인다.
  */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** 한 번에 밀어넣을 수 있는 변경 수. 상한이 없으면 요청 하나가 DB를 오래 잡는다. */
 export const PUSH_MAX_CHANGES = 500
@@ -19,7 +21,9 @@ export const PUSH_MAX_CHANGES = 500
 export const PULL_MAX_LIMIT = 500
 
 /** 동기화 대상 테이블. 서버 테이블명과 정확히 같다. */
-export const SYNC_TABLE = ['expense_categories', 'expenses'] as const
+export const SYNC_TABLE = [
+  'expense_categories', 'expenses', 'books', 'book_notes',
+] as const
 export type SyncTable = (typeof SYNC_TABLE)[number]
 
 // ---------------------------------------------------------------------------

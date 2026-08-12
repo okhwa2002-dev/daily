@@ -3,7 +3,7 @@ import { SCHEMA_VERSION, type PullResponse, type PushResponse } from '@daily/sha
 import { db, META_KEY } from '../db/index.ts'
 import { setAccessToken } from '../lib/apiClient.ts'
 import { enqueue, pendingCount, takeBatch } from './outbox.ts'
-import { resetSyncState, syncNow } from './engine.ts'
+import { clearLocalData, resetSyncState, syncNow } from './engine.ts'
 
 const USER = 1
 const UUID_A = 'aaaaaaaa-0000-4000-8000-000000000001'
@@ -339,5 +339,33 @@ describe('pull', () => {
 
     expect(outcome.error).toBe('끊김')
     expect(await db.meta.get(META_KEY.initialSyncDone)).toBeUndefined()
+  })
+})
+
+describe('clearLocalData', () => {
+  // 목록을 손으로 관리하면 새 테이블을 빠뜨리고, 그 누락은 "로그아웃해도
+  // 남의 독서 기록이 기기에 남는다"는 형태로만 드러난다.
+  it('모든 로컬 스토어를 비운다', async () => {
+    await db.books.put({
+      clientUuid: 'aaaaaaaa-0000-4000-8000-000000000001',
+      userId: USER, serverId: 1,
+      title: '사피엔스', author: null, summary: null,
+      status: 'READING', startedOn: null, finishedOn: null,
+      updatedAt: '2026-08-11 12:00:00.000', deletedAt: null,
+    })
+    await db.bookNotes.put({
+      clientUuid: 'bbbbbbbb-0000-4000-8000-000000000002',
+      userId: USER, serverId: 2,
+      occurredOn: '2026-08-11', content: '좋다',
+      bookClientUuid: 'aaaaaaaa-0000-4000-8000-000000000001',
+      updatedAt: '2026-08-11 12:00:00.000', deletedAt: null,
+    })
+    await queueExpense()
+
+    await clearLocalData()
+
+    for (const table of db.tables) {
+      expect(await table.count(), `${table.name}이 비지 않았다`).toBe(0)
+    }
   })
 })

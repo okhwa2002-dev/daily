@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { SCHEMA_VERSION, type PullResponse, type PushResponse } from '@daily/shared'
 import { buildApp } from '../app.ts'
 import { db, pool } from '../db/pool.ts'
-import { expenseCategories, expenses, users } from '../db/schema.ts'
+import { bookNotes, books, expenseCategories, expenses, users } from '../db/schema.ts'
 import { dbNow, padMillis } from '../db/time.ts'
 import { resetDb, testLoginId } from '../db/testing.ts'
 import { issueAccessToken } from '../auth/tokens.ts'
@@ -31,7 +31,7 @@ async function tokenFor(userId: number) {
 }
 
 interface ChangeInput {
-  table: 'expenses' | 'expense_categories'
+  table: 'expenses' | 'expense_categories' | 'books' | 'book_notes'
   clientUuid: string
   op?: 'UPSERT' | 'DELETE'
   updatedAt: string
@@ -64,6 +64,8 @@ async function settle() {
   const past = '2026-01-01 00:00:00.000'
   await db.update(expenses).set({ syncedAt: past })
   await db.update(expenseCategories).set({ syncedAt: past })
+  await db.update(books).set({ syncedAt: past })
+  await db.update(bookNotes).set({ syncedAt: past })
 }
 
 const expensePayload = (amount: string, extra: Record<string, unknown> = {}) => ({
@@ -560,5 +562,125 @@ describe('교차 계정 격리', () => {
 
     // 남의 카테고리는 보이지 않으므로 "아직 없음"으로 처리된다.
     expect(body.results[0]?.status).toBe('CONFLICT')
+  })
+})
+
+describe('독서 — 부모-자식 동기화', () => {
+  const AT = '2026-08-11T12:00:00+09:00'
+  const bookPayload = (over: Record<string, unknown> = {}) => ({
+    title: '사피엔스', status: 'READING', ...over,
+  })
+  const notePayload = (bookUuid: string, over: Record<string, unknown> = {}) => ({
+    occurredOn: TODAY, bookClientUuid: bookUuid, content: '3부가 인상 깊다', ...over,
+  })
+
+  it('같은 배치에서 책이 먼저 오면 감상평의 book_id가 채워진다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [
+      { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+
+    expect(body.results.map((r) => r.status)).toEqual(['APPLIED', 'APPLIED'])
+
+    const [book] = await db.select().from(books)
+    const [note] = await db.select().from(bookNotes)
+    expect(note?.bookId).toBe(book?.id)
+    expect(note?.bookClientUuid).toBe(UUID(1))
+  })
+
+  it('부모 책이 아직 없으면 REJECTED가 아니라 CONFLICT다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+
+    // REJECTED로 만들면 클라이언트가 큐에서 빼버려 감상평이 영구 소실된다.
+    expect(body.results[0]?.status).toBe('CONFLICT')
+    expect(await db.select().from(bookNotes)).toHaveLength(0)
+  })
+
+  it('부모를 보낸 뒤 재시도하면 저장된다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    await push(auth, [
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+    await push(auth, [
+      { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
+    ])
+    const { body } = await push(auth, [
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+
+    expect(body.results[0]?.status).toBe('APPLIED')
+    expect(await db.select().from(bookNotes)).toHaveLength(1)
+  })
+
+  it('남의 책을 부모로 지정하면 CONFLICT다', async () => {
+    const mine = await tokenFor(await makeUser('a@example.com'))
+    const theirs = await tokenFor(await makeUser('bbbb@example.com'))
+    await push(theirs, [
+      { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
+    ])
+
+    const { body } = await push(mine, [
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+
+    // 소유권 격리. 남의 책 id가 내 감상평에 박히면 안 된다.
+    expect(body.results[0]?.status).toBe('CONFLICT')
+    expect(await db.select().from(bookNotes)).toHaveLength(0)
+  })
+
+  it('삭제된 책도 부모로 찾는다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    await push(auth, [
+      { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
+    ])
+    await push(auth, [
+      { table: 'books', clientUuid: UUID(1), op: 'DELETE', updatedAt: '2026-08-11T13:00:00+09:00' },
+    ])
+
+    const { body } = await push(auth, [
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+
+    // 툼스톤을 제외하면 이 감상평은 영원히 CONFLICT가 되어 큐가 막힌다.
+    expect(body.results[0]?.status).toBe('APPLIED')
+  })
+
+  it('기간이 뒤집힌 책은 REJECTED다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'books', clientUuid: UUID(1), updatedAt: AT,
+      payload: bookPayload({ startedOn: '2026-08-10', finishedOn: '2026-08-09' }),
+    }])
+
+    // zod에서 걸려야 한다. DB CHECK까지 가면 500이고, 500은 재시도 대상이다.
+    expect(body.results[0]?.status).toBe('REJECTED')
+  })
+
+  it('pull로 책과 감상평이 내려온다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    await push(auth, [
+      { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
+      { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
+    ])
+    await settle()
+
+    const { body } = await pull(auth)
+    const tables = body.changes.map((c) => c.table)
+    expect(tables).toContain('books')
+    expect(tables).toContain('book_notes')
+
+    const note = body.changes.find((c) => c.table === 'book_notes')
+    expect(note?.occurredOn).toBe(TODAY)
+    expect(note?.payload.bookClientUuid).toBe(UUID(1))
+    // 서버 내부 id는 페이로드에 실리지 않는다.
+    expect(note?.payload.bookId).toBeUndefined()
+
+    const book = body.changes.find((c) => c.table === 'books')
+    expect(book?.occurredOn).toBeNull()
+    expect(book?.payload.title).toBe('사피엔스')
   })
 })

@@ -320,16 +320,13 @@ export function startSync(
  *
  * 개인 기록이 기기에 남으면 다음 사용자가 그대로 본다. 큐에 남은 변경도 함께
  * 사라지므로, 로그아웃 전에 동기화를 끝내는 것은 호출부 책임이다.
+ *
+ * 테이블을 이름으로 나열하지 않는다. 손으로 관리하면 새 스토어를 추가할 때
+ * 빠뜨리고, 그 누락은 "로그아웃해도 남의 기록이 남는다"는 형태로만 드러난다.
  */
 export async function clearLocalData(): Promise<void> {
   resetSyncState()
-  await db.transaction('rw',
-    db.expenses, db.expenseCategories, db.outbox, db.meta, db.syncFailures,
-    async () => {
-      await db.expenses.clear()
-      await db.expenseCategories.clear()
-      await db.outbox.clear()
-      await db.meta.clear()
-      await db.syncFailures.clear()
-    })
+  await db.transaction('rw', db.tables, async () => {
+    await Promise.all(db.tables.map((table) => table.clear()))
+  })
 }

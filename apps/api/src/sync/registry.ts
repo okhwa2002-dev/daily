@@ -1,10 +1,12 @@
 import type { z } from 'zod'
 import {
+  bookNotePayloadSchema, bookPayloadSchema,
   expenseCategoryPayloadSchema, expensePayloadSchema,
+  type BookNotePayload, type BookPayload,
   type ExpenseCategoryPayload, type ExpensePayload, type SyncTable,
 } from '@daily/shared'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { expenseCategories, expenses } from '../db/schema.ts'
+import { bookNotes, books, expenseCategories, expenses } from '../db/schema.ts'
 import type { OwnedTable } from '../db/ownership.ts'
 
 /** 컬럼명 → 값. 동기화 엔진이 테이블을 모른 채 다루는 단위다. */
@@ -75,7 +77,7 @@ export type AnyPayload = Record<string, unknown>
  * 고쳐야 하고, 그중 하나를 빠뜨리는 것이 1단계에서 반복된 실패 방식이었다.
  * 여기 한 항목을 추가하면 세 곳이 함께 따라온다.
  *
- * **2단계 범위는 지출뿐이다.** 나머지 5개 테이블은 엔진이 검증된 뒤에 추가한다.
+ * 나머지 도메인(운동·식사·일기)은 화면이 만들어지는 시점에 추가한다.
  */
 export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
   expense_categories: define<ExpenseCategoryPayload>({
@@ -109,6 +111,59 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
       amount: r.amount,
       categoryClientUuid: r.categoryClientUuid,
       memo: r.memo,
+    }),
+  }),
+  books: define<BookPayload>({
+    table: books,
+    payload: bookPayloadSchema,
+    hasOccurredOn: false,
+    toColumns: (p: BookPayload) => ({
+      title: p.title,
+      author: p.author,
+      summary: p.summary,
+      status: p.status,
+      startedOn: p.startedOn,
+      finishedOn: p.finishedOn,
+    }),
+    toPayload: (r) => ({
+      title: r.title,
+      author: r.author,
+      summary: r.summary,
+      status: r.status,
+      startedOn: r.startedOn,
+      finishedOn: r.finishedOn,
+    }),
+  }),
+  book_notes: define<BookNotePayload>({
+    table: bookNotes,
+    payload: bookNotePayloadSchema,
+    hasOccurredOn: true,
+    parent: {
+      uuidField: 'bookClientUuid',
+      parentTable: books,
+      // 감상평은 부모 없이 존재할 수 없다. book_id가 NOT NULL이다.
+      required: true,
+    },
+    toColumns: (p: BookNotePayload, parentId) => {
+      // required: true라 resolveParentId가 null을 돌려주지 않는다. 도달할 수
+      // 없지만 non-null 단언 대신 명시적으로 막는다 — null이 새어 들어가면
+      // NOT NULL 위반이 500이 되고, 500은 재시도 대상이라 큐가 막힌다.
+      if (parentId === null) {
+        throw new Error('book_notes에 부모 책이 지정되지 않았습니다.')
+      }
+      return {
+        occurredOn: p.occurredOn,
+        bookId: parentId,
+        bookClientUuid: p.bookClientUuid,
+        content: p.content,
+      }
+    },
+    // bookId는 내보내지 않는다. 서버 내부 식별자가 클라이언트로 새면
+    // 다음 push에서 그 값이 되돌아올 경로가 생긴다.
+    toPayload: (r) => ({
+      occurredOn: r.occurredOn,
+      bookClientUuid: r.bookClientUuid,
+      content: r.content,
     }),
   }),
 }

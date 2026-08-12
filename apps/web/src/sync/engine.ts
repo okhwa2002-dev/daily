@@ -213,7 +213,10 @@ async function pullAll(userId: number): Promise<number> {
   let total = 0
 
   for (;;) {
+    // schemaVersion을 보낸다. 서버가 필수로 요구한다 — 안 보내면(구버전 캐시가
+    // 이 필드를 모르는 경우) 426으로 막혀 Service Worker 갱신을 유도받는다.
     const qs = new URLSearchParams({
+      schemaVersion: String(SCHEMA_VERSION),
       since: syncedAt, sinceId: String(id), limit: String(PULL_PAGE),
     })
     const res = await apiFetch(`/sync/pull?${qs.toString()}`)

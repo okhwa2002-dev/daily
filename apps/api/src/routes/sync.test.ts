@@ -50,8 +50,13 @@ async function push(auth: string, changes: ChangeInput[], schemaVersion = SCHEMA
 }
 
 async function pull(auth: string, query: Record<string, string | number> = FROM_START) {
+  // schemaVersion을 기본으로 섞어 넣는다. 이 헬퍼를 거치는 모든 호출(커서를
+  // 직접 만든 경우 포함)이 자동으로 버전을 보내게 하기 위해서다 — 호출부마다
+  // 빠뜨리지 않는지 각각 챙겨야 한다면 그중 하나는 결국 빠진다. query가
+  // schemaVersion을 명시하면 그 값으로 덮어써 구버전 테스트도 그대로 쓸 수 있다.
+  const merged = { schemaVersion: SCHEMA_VERSION, ...query }
   const qs = new URLSearchParams(
-    Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])),
+    Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, String(v)])),
   ).toString()
   const res = await app.inject({
     method: 'GET', url: `/api/sync/pull?${qs}`, headers: { authorization: auth },
@@ -370,6 +375,27 @@ describe('GET /api/sync/pull', () => {
     expect(res.statusCode).toBe(401)
   })
 
+  it('구버전 스키마 버전으로 pull하면 426이다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { res } = await pull(auth, { ...FROM_START, schemaVersion: SCHEMA_VERSION - 1 })
+
+    expect(res.statusCode).toBe(426)
+    expect(res.json().error.code).toBe('UPGRADE_REQUIRED')
+  })
+
+  it('schemaVersion 없이 pull하면 426이다 — v1 클라이언트가 실제로 보내는 요청 모양', async () => {
+    // v1 클라이언트는 pull에 schemaVersion을 아예 보내지 않는다. 옵셔널로 두면
+    // 이 요청이 그냥 통과해 버리고, 그 기기는 모르는 테이블(books)의 행을
+    // 받아 동기화 루프가 죽는다. 필수 파라미터라 파싱 단계에서부터 걸려야 한다.
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const res = await app.inject({
+      method: 'GET', url: '/api/sync/pull', headers: { authorization: auth },
+    })
+
+    expect(res.statusCode).toBe(426)
+    expect(res.json().error.code).toBe('UPGRADE_REQUIRED')
+  })
+
   it('자기 기록만 내려받는다', async () => {
     const authA = await tokenFor(await makeUser('a@example.com'))
     const authB = await tokenFor(await makeUser('b@example.com'))
@@ -486,7 +512,8 @@ describe('GET /api/sync/pull', () => {
     await settle()
 
     const res = await app.inject({
-      method: 'GET', url: '/api/sync/pull', headers: { authorization: auth },
+      method: 'GET', url: `/api/sync/pull?schemaVersion=${SCHEMA_VERSION}`,
+      headers: { authorization: auth },
     })
     expect((res.json() as PullResponse).changes).toHaveLength(1)
   })
@@ -619,9 +646,12 @@ describe('독서 — 부모-자식 동기화', () => {
   it('남의 책을 부모로 지정하면 CONFLICT다', async () => {
     const mine = await tokenFor(await makeUser('a@example.com'))
     const theirs = await tokenFor(await makeUser('bbbb@example.com'))
-    await push(theirs, [
+    const theirsPush = await push(theirs, [
       { table: 'books', clientUuid: UUID(1), updatedAt: AT, payload: bookPayload() },
     ])
+    // 이 push가 조용히 실패하면 아래 CONFLICT는 소유권 격리가 아니라 그냥
+    // "부모 없음"을 검증하는 것으로 퇴화한다.
+    expect(theirsPush.body.results[0]?.status).toBe('APPLIED')
 
     const { body } = await push(mine, [
       { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },
@@ -640,6 +670,10 @@ describe('독서 — 부모-자식 동기화', () => {
     await push(auth, [
       { table: 'books', clientUuid: UUID(1), op: 'DELETE', updatedAt: '2026-08-11T13:00:00+09:00' },
     ])
+    // DELETE가 no-op이었다면 부모가 살아 있으니 아래 APPLIED는 툼스톤을 찾은
+    // 결과가 아니라 그냥 부모가 여전히 산 값이라 통과한 것이 된다. 이 assert가
+    // 없으면 이 테스트가 실제로 뭘 증명하는지 알 수 없다.
+    expect((await db.select().from(books))[0]?.deletedAt).not.toBeNull()
 
     const { body } = await push(auth, [
       { table: 'book_notes', clientUuid: UUID(2), updatedAt: AT, payload: notePayload(UUID(1)) },

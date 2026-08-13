@@ -1,5 +1,8 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
-import type { BookStatus, ExpenseKind, OutboxOp, SyncTable } from '@daily/shared'
+import type {
+  BodyPart, BookStatus, ExpenseKind, Intensity, OutboxOp, SyncTable,
+  WorkoutKind, WorkoutSet,
+} from '@daily/shared'
 
 export interface OutboxRow {
   seq: number
@@ -81,6 +84,19 @@ export interface LocalBookNote extends LocalRecord {
   content: string
 }
 
+export interface LocalWorkout extends LocalRecord {
+  occurredOn: string
+  kind: WorkoutKind
+  name: string
+  bodyPart: BodyPart | null
+  /** 근력 세트. 자식 테이블이 아니라 값 덩어리다 — 운동과 항상 함께 바뀐다 */
+  sets: WorkoutSet[] | null
+  /** 유산소 지속 시간(분) */
+  durationMin: number | null
+  intensity: Intensity | null
+  memo: string | null
+}
+
 /**
  * 공통코드 캐시.
  *
@@ -103,6 +119,7 @@ class DailyDb extends Dexie {
   books!: EntityTable<LocalBook, 'clientUuid'>
   bookNotes!: EntityTable<LocalBookNote, 'clientUuid'>
   codes!: Table<LocalCode, [string, string]>
+  workouts!: EntityTable<LocalWorkout, 'clientUuid'>
 
   constructor() {
     super('daily')
@@ -128,6 +145,13 @@ class DailyDb extends Dexie {
     // 복합 기본키다. 그룹이 다르면 같은 코드값이 존재할 수 있다.
     this.version(4).stores({
       codes: '[groupCode+code], groupCode',
+    })
+    // deletedAt을 인덱스에 넣지 않는 것은 version 2·3과 같은 이유다 —
+    // IndexedDB가 null을 키로 쓰지 못해 살아있는 레코드가 통째로 빠진다.
+    // name 인덱스도 만들지 않는다. 자동완성에 필요한 것은 "최근 쓴 순서"라
+    // name 인덱스로는 답이 안 나오고, [userId+occurredOn] 역순 스캔이면 된다.
+    this.version(5).stores({
+      workouts: 'clientUuid, userId, [userId+occurredOn]',
     })
   }
 }

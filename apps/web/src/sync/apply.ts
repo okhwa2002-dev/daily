@@ -1,4 +1,7 @@
-import type { BookStatus, ExpenseKind, SyncRow, SyncTable } from '@daily/shared'
+import type {
+  BodyPart, BookStatus, ExpenseKind, Intensity, SyncRow, SyncTable,
+  WorkoutKind, WorkoutSet,
+} from '@daily/shared'
 import { db } from '../db/index.ts'
 
 /**
@@ -83,6 +86,22 @@ const APPLIERS: Record<SyncTable, (userId: number, row: SyncRow) => Promise<void
     updatedAt: r.updatedAt,
     deletedAt: r.deletedAt,
   })),
+
+  workouts: (userId, row) => applyToTable(db.workouts, userId, row, (r) => ({
+    clientUuid: r.clientUuid,
+    userId,
+    serverId: r.id,
+    occurredOn: String(r.payload.occurredOn),
+    kind: r.payload.kind as WorkoutKind,
+    name: String(r.payload.name),
+    bodyPart: (r.payload.bodyPart as BodyPart | null) ?? null,
+    sets: (r.payload.sets as WorkoutSet[] | null) ?? null,
+    durationMin: (r.payload.durationMin as number | null) ?? null,
+    intensity: (r.payload.intensity as Intensity | null) ?? null,
+    memo: (r.payload.memo as string | null) ?? null,
+    updatedAt: r.updatedAt,
+    deletedAt: r.deletedAt,
+  })),
 }
 
 /** pull로 받은 변경을 순서대로 반영한다. */
@@ -109,6 +128,7 @@ const SERVER_ID_STORES: Record<SyncTable, {
   expense_categories: db.expenseCategories,
   books: db.books,
   book_notes: db.bookNotes,
+  workouts: db.workouts,
 }
 
 /** push 응답의 서버 id를 로컬 레코드에 기록한다. */

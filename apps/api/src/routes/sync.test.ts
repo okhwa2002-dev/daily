@@ -648,18 +648,21 @@ describe('독서 — 부모-자식 동기화', () => {
       .set({ deletedAt: now, deletedBy: 0 })
       .where(and(eq(codes.groupCode, 'BOOK_GENRE'), eq(codes.code, 'ETC')))
 
-    const auth = await tokenFor(await makeUser('a@example.com'))
-    const { body } = await push(auth, [{
-      table: 'books', clientUuid: UUID(1), updatedAt: AT,
-      payload: bookPayload({ genre: 'ETC' }),
-    }])
+    // 단언이 실패해도 복원이 돌아야 한다 — resetDb가 codes를 건드리지 않으므로,
+    // 여기서 되돌리지 못하면 ETC가 삭제된 채로 이후 모든 테스트 실행에 남는다.
+    try {
+      const auth = await tokenFor(await makeUser('a@example.com'))
+      const { body } = await push(auth, [{
+        table: 'books', clientUuid: UUID(1), updatedAt: AT,
+        payload: bookPayload({ genre: 'ETC' }),
+      }])
 
-    expect(body.results[0]?.status).toBe('APPLIED')
-
-    // 다음 테스트를 위해 되돌린다. 시드 데이터는 resetDb가 복구해 주지 않는다.
-    await db.update(codes)
-      .set({ deletedAt: null, deletedBy: null })
-      .where(and(eq(codes.groupCode, 'BOOK_GENRE'), eq(codes.code, 'ETC')))
+      expect(body.results[0]?.status).toBe('APPLIED')
+    } finally {
+      await db.update(codes)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(and(eq(codes.groupCode, 'BOOK_GENRE'), eq(codes.code, 'ETC')))
+    }
   })
 
   it('pull 페이로드에 장르가 실린다', async () => {
@@ -673,6 +676,8 @@ describe('독서 — 부모-자식 동기화', () => {
     const { body } = await pull(auth)
     const book = body.changes.find((c) => c.table === 'books')
     expect(book?.payload.genre).toBe('TECH')
+    // 서버 내부 id가 클라이언트로 새면 다음 push에서 그 값이 되돌아올 경로가 생긴다.
+    expect(book?.payload.id).toBeUndefined()
   })
 
   it('같은 배치에서 책이 먼저 오면 감상평의 book_id가 채워진다', async () => {

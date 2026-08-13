@@ -22,7 +22,8 @@ DB 테이블(`workouts`)·인덱스·`CHECK`·컬럼 코멘트는 1단계에서 
 
 ```
 packages/shared/src/
-└── workout.ts                  workoutSetsSchema (기존) + workoutPayloadSchema (신규)
+├── sync.ts                     workoutPayloadSchema + SYNC_TABLE·SCHEMA_VERSION
+└── workout.ts                  WorkoutSet 값 타입 (기존, 손대지 않는다)
 
 apps/api/src/sync/
 └── registry.ts                 workouts 항목 추가
@@ -35,8 +36,13 @@ apps/web/src/
     ├── WorkoutPage.tsx         날짜 네비 + 그날 목록 + 추가/수정
     ├── WorkoutForm.tsx         kind 선택 + 공통 필드
     ├── SetRows.tsx             세트 행 반복 입력
+    ├── labels.ts               코드값 → 한글 라벨
     └── repository.ts           Dexie 읽기/쓰기 + 아웃박스 적재
 ```
+
+`workoutPayloadSchema`는 `workout.ts`가 아니라 `sync.ts`에 둔다. `expensePayloadSchema`·`bookPayloadSchema`가 전부 거기 있고 `occurredOnSchema`도 거기 있다 — `workout.ts`에 두면 그 정규식을 복제하거나 순환 임포트가 생긴다. `workout.ts`는 DB 스키마의 `$type<WorkoutSet[]>`도 쓰는 값 타입만 계속 소유한다.
+
+`labels.ts`를 따로 두는 이유는 `WorkoutForm`(선택지)과 `WorkoutPage`(목록 표시)가 함께 쓰기 때문이다. 둘 중 한쪽에 두면 다른 쪽이 형제 파일을 임포트하게 된다.
 
 `pages/<기능>/` 규칙을 그대로 따른다. `pages/workout/`은 `pages/expense/`를 임포트하지 않는다.
 
@@ -242,7 +248,9 @@ kind   [ 근력 | 유산소 ]        ← 두 개짜리 토글
 
 ### 종목 자동완성
 
-`repository.listRecentNames(userId, limit)`가 `[userId+occurredOn]`을 최근 날짜부터 역순으로 훑어 살아있는 행의 `name`을 중복 없이 모은다. 최근 90일 또는 200행 중 먼저 닿는 쪽에서 멈춘다 — 상한이 없으면 기록이 쌓일수록 폼을 열 때마다 전체 테이블을 읽는다.
+`repository.listRecentNames(userId, limit)`가 `[userId+occurredOn]`을 최근 날짜부터 역순으로 훑어 살아있는 행의 `name`을 중복 없이 모은다. 200행에서 멈춘다 — 상한이 없으면 기록이 쌓일수록 폼을 열 때마다 전체 테이블을 읽는다.
+
+날짜 하한(예: 최근 90일)은 걸지 않는다. 오래 쉬었다 돌아온 사용자에게 자동완성이 통째로 비는데, 그 사용자야말로 종목 이름을 다시 치기 싫어하는 쪽이다. 행 상한만으로 위 문제는 이미 막힌다.
 
 `<input list>` + `<datalist>`로 붙인다. 자유 입력이 여전히 가능해야 한다. 새 종목을 못 넣게 되면 `name`이 자유 입력이라는 전제가 깨진다.
 

@@ -1,5 +1,5 @@
 import type {
-  BodyPart, BookStatus, ExpenseKind, Intensity, SyncRow, SyncTable,
+  BookStatus, ExpenseKind, SyncRow, SyncTable,
   WorkoutKind, WorkoutSet,
 } from '@daily/shared'
 import { db } from '../db/index.ts'
@@ -94,10 +94,10 @@ const APPLIERS: Record<SyncTable, (userId: number, row: SyncRow) => Promise<void
     occurredOn: String(r.payload.occurredOn),
     kind: r.payload.kind as WorkoutKind,
     name: String(r.payload.name),
-    bodyPart: (r.payload.bodyPart as BodyPart | null) ?? null,
+    bodyPart: (r.payload.bodyPart as string | null) ?? null,
     sets: (r.payload.sets as WorkoutSet[] | null) ?? null,
     durationMin: (r.payload.durationMin as number | null) ?? null,
-    intensity: (r.payload.intensity as Intensity | null) ?? null,
+    intensity: (r.payload.intensity as string | null) ?? null,
     memo: (r.payload.memo as string | null) ?? null,
     updatedAt: r.updatedAt,
     deletedAt: r.deletedAt,

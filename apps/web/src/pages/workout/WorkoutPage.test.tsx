@@ -17,6 +17,14 @@ beforeEach(async () => {
   syncSoon.mockClear()
   await db.workouts.clear()
   await db.outbox.clear()
+  // 부위·강도 라벨은 공통코드 캐시에서 온다. 비워두면 화면이 코드값을
+  // 그대로 보여주므로(codeLabel의 폴백), 라벨 표시를 검증하려면 시드해야 한다.
+  await db.codes.clear()
+  await db.codes.bulkPut([
+    { groupCode: 'BODY_PART', code: 'CHEST', name: '가슴', sortOrder: 1 },
+    { groupCode: 'BODY_PART', code: 'LEGS', name: '하체', sortOrder: 3 },
+    { groupCode: 'INTENSITY', code: 'MID', name: '보통', sortOrder: 2 },
+  ])
 
   useSession.setState({ user: USER, status: 'AUTHENTICATED', logout: async () => {} })
   useSync.setState({

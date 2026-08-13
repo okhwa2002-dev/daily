@@ -71,6 +71,28 @@ export interface SyncTableDef<TPayload = unknown> {
 }
 
 /**
+ * 코드값이 실제로 `codes`에 있는지 확인한다. 통과면 `null`, 아니면 사유.
+ *
+ * **`deleted_at`을 보지 않는다 — 존재만 본다.** 살아있는 코드만 통과시키면,
+ * 관리자가 코드 하나를 지우는 순간 그 코드를 쓰던 사용자의 오프라인 수정이
+ * 전부 REJECTED가 되어 버려진다. 사용자는 잘못한 것이 없는데 기록을 잃는다.
+ * `resolveParentId`가 `liveOwnedBy`가 아니라 `ownedBy`를 쓰는 것과 같다.
+ *
+ * 새로 고를 수 없게 막는 것은 화면의 몫이다 — 삭제된 코드는 `GET /codes`에서
+ * 빠지므로 선택 목록에 뜨지 않는다.
+ */
+async function checkCode(
+  groupCode: string,
+  value: string | null,
+  reason: string,
+): Promise<string | null> {
+  if (value === null) return null
+  const [found] = await db.select({ code: codes.code }).from(codes)
+    .where(and(eq(codes.groupCode, groupCode), eq(codes.code, value)))
+  return found ? null : reason
+}
+
+/**
  * 항목별 페이로드 타입을 유지한 채 균일한 맵에 담기 위한 헬퍼.
  *
  * 각 항목 안에서는 `toColumns`가 자기 페이로드 타입으로 검사되고, 밖에서는
@@ -130,26 +152,9 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
     table: books,
     payload: bookPayloadSchema,
     hasOccurredOn: false,
-    /**
-     * 장르가 실제 코드인지 확인한다.
-     *
-     * **`deleted_at`을 보지 않는다 — 존재만 본다.** 살아있는 코드만 통과시키면,
-     * 관리자가 장르 하나를 지우는 순간 그 장르를 쓰던 사용자의 오프라인 수정이
-     * 전부 REJECTED가 되어 버려진다. 사용자는 잘못한 것이 없는데 기록을 잃는다.
-     * `resolveParentId`가 `liveOwnedBy`가 아니라 `ownedBy`를 쓰는 것과 같다.
-     *
-     * 새로 고를 수 없게 막는 것은 화면의 몫이다 — 삭제된 코드는 `GET /codes`에서
-     * 빠지므로 선택 목록에 뜨지 않는다.
-     */
-    validate: async (p: BookPayload) => {
-      if (p.genre === null) return null
-      const [found] = await db.select({ code: codes.code }).from(codes)
-        .where(and(
-          eq(codes.groupCode, CODE_GROUP.BOOK_GENRE),
-          eq(codes.code, p.genre),
-        ))
-      return found ? null : '알 수 없는 장르입니다.'
-    },
+    /** 장르가 실제 코드인지 확인한다. 규칙은 `checkCode` 주석 참고. */
+    validate: (p: BookPayload) =>
+      checkCode(CODE_GROUP.BOOK_GENRE, p.genre, '알 수 없는 장르입니다.'),
     toColumns: (p: BookPayload) => ({
       title: p.title,
       author: p.author,
@@ -202,11 +207,11 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
     }),
   }),
   /**
-   * 운동. 부모 참조도 `validate`도 없다.
+   * 운동. 부모 참조는 없다.
    *
-   * `validate`는 zod로 막을 수 없는 것만 오는 자리다. 운동의 코드값은 전부
-   * `codes.ts`의 정적 집합이라 `z.enum`에서 걸린다 — `BOOK_GENRE`가 여기를
-   * 쓰는 것은 값 집합이 DB의 `codes` 테이블에 있어서다.
+   * 부위·강도는 값 집합이 `codes` 테이블에 있는 공통코드다. `CHECK`도 zod
+   * enum도 없으므로 아래 `validate`가 유일한 방어선이다. `kind`는 여전히
+   * 정적 집합이라 `z.enum`과 `workouts_kind_ck`가 막는다.
    *
    * `sets`는 손대지 않고 그대로 넘긴다. `jsonb` 컬럼이 객체를 다루므로
    * `JSON.stringify`를 끼워 넣으면 따옴표로 감싼 문자열이 저장되고,
@@ -216,6 +221,10 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
     table: workouts,
     payload: workoutPayloadSchema,
     hasOccurredOn: true,
+    /** 규칙은 `checkCode` 주석 참고 — 존재만 보고 삭제된 코드도 통과시킨다. */
+    validate: async (p: WorkoutPayload) =>
+      await checkCode(CODE_GROUP.BODY_PART, p.bodyPart, '알 수 없는 운동 부위입니다.')
+      ?? await checkCode(CODE_GROUP.INTENSITY, p.intensity, '알 수 없는 운동 강도입니다.'),
     toColumns: (p: WorkoutPayload) => ({
       occurredOn: p.occurredOn,
       kind: p.kind,

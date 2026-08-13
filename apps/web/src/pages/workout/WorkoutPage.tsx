@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { kstDate } from '@daily/shared'
+import { CODE_GROUP, kstDate } from '@daily/shared'
+import { codeLabel } from '../../codes/label.ts'
+import { listCodes } from '../../codes/repository.ts'
 import SyncStatus from '../../components/SyncStatus.tsx'
-import type { LocalWorkout } from '../../db/index.ts'
+import type { LocalCode, LocalWorkout } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
-import { BODY_PART_LABEL, INTENSITY_LABEL } from './labels.ts'
 import WorkoutForm from './WorkoutForm.tsx'
 import {
   deleteWorkout, listRecentNames, listWorkoutsByDate, saveWorkout,
@@ -20,12 +21,13 @@ function formatSets(sets: LocalWorkout['sets']): string {
     .join(', ')
 }
 
-function formatCardio(w: LocalWorkout): string {
-  // formatSets와 같은 수준의 방어다. 지금은 스키마·CHECK·폼이 삼중으로 막지만,
+function formatCardio(w: LocalWorkout, intensities: LocalCode[]): string {
+  // formatSets와 같은 수준의 방어다. 지금은 스키마·폼이 이중으로 막지만,
   // apply.ts는 서버 payload를 재검증 없이 Dexie에 쓴다.
   if (w.durationMin == null) return ''
   const parts = [`${w.durationMin}분`]
-  if (w.intensity) parts.push(INTENSITY_LABEL[w.intensity])
+  const label = codeLabel(intensities, w.intensity)
+  if (label) parts.push(label)
   return parts.join(' · ')
 }
 
@@ -52,6 +54,11 @@ export default function WorkoutPage() {
   const recentNames = useLiveQuery(
     () => listRecentNames(userId), [userId], [],
   )
+
+  // 부위·강도 라벨은 codes 테이블이 갖는다. 캐시는 사용자와 무관하게
+  // 통째로 받아 덮어쓰는 사본이라 deps에 userId도 필요 없다.
+  const bodyParts = useLiveQuery(() => listCodes(CODE_GROUP.BODY_PART), [], [])
+  const intensities = useLiveQuery(() => listCodes(CODE_GROUP.INTENSITY), [], [])
 
   /**
    * 날짜를 바꾸면 진행 중인 수정을 취소한다.
@@ -110,6 +117,8 @@ export default function WorkoutPage() {
         key={editing?.clientUuid ?? 'new'}
         occurredOn={occurredOn}
         recentNames={recentNames}
+        bodyParts={bodyParts}
+        intensities={intensities}
         initial={editing ?? undefined}
         onSubmit={handleSubmit}
         onCancel={editing ? () => setEditing(null) : undefined}
@@ -131,11 +140,13 @@ export default function WorkoutPage() {
                   <p className="truncate text-sm">
                     <span className="text-gray-900">{w.name}</span>
                     {w.bodyPart && (
-                      <span className="ml-2 text-gray-500">{BODY_PART_LABEL[w.bodyPart]}</span>
+                      <span className="ml-2 text-gray-500">
+                        {codeLabel(bodyParts, w.bodyPart)}
+                      </span>
                     )}
                   </p>
                   <p className="truncate text-xs text-gray-500">
-                    {w.kind === 'CARDIO' ? formatCardio(w) : formatSets(w.sets)}
+                    {w.kind === 'CARDIO' ? formatCardio(w, intensities) : formatSets(w.sets)}
                   </p>
                   {w.memo && <p className="truncate text-xs text-gray-400">{w.memo}</p>}
                 </div>

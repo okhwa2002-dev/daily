@@ -6,13 +6,8 @@ export type ExpenseKind = (typeof EXPENSE_KIND)[number]
 export const WORKOUT_KIND = ['STRENGTH', 'CARDIO', 'ETC'] as const
 export type WorkoutKind = (typeof WORKOUT_KIND)[number]
 
-export const BODY_PART = [
-  'CHEST', 'BACK', 'LEGS', 'SHOULDERS', 'ARMS', 'CORE', 'FULL_BODY',
-] as const
-export type BodyPart = (typeof BODY_PART)[number]
-
-export const INTENSITY = ['LOW', 'MID', 'HIGH'] as const
-export type Intensity = (typeof INTENSITY)[number]
+// 부위(BODY_PART)와 강도(INTENSITY)는 여기 없다. 값 집합이 codes 테이블에 있는
+// 공통코드라 컴파일 시점에 열거할 수 없다. 그룹 이름은 CODE_GROUP에 있다.
 
 export const MEAL_SLOT = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as const
 export type MealSlot = (typeof MEAL_SLOT)[number]
@@ -34,7 +29,7 @@ export type SyncResult = (typeof SYNC_RESULT)[number]
 
 /** 코드값 규칙 검증용 — 새 코드 그룹을 추가하면 여기에도 넣는다. */
 export const ALL_CODES: readonly string[] = [
-  ...EXPENSE_KIND, ...WORKOUT_KIND, ...BODY_PART, ...INTENSITY,
+  ...EXPENSE_KIND, ...WORKOUT_KIND,
   ...MEAL_SLOT, ...PORTION, ...BOOK_STATUS, ...USER_STATUS,
   ...OUTBOX_OP, ...SYNC_RESULT,
   ...Object.values(CODE_GROUP),

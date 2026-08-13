@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
 import type {
-  BodyPart, BookStatus, ExpenseKind, Intensity, OutboxOp, SyncTable,
+  BookStatus, ExpenseKind, OutboxOp, SyncTable,
   WorkoutKind, WorkoutSet,
 } from '@daily/shared'
 
@@ -88,12 +88,14 @@ export interface LocalWorkout extends LocalRecord {
   occurredOn: string
   kind: WorkoutKind
   name: string
-  bodyPart: BodyPart | null
+  /** 부위 코드값. 라벨은 codes 캐시에서 찾는다 */
+  bodyPart: string | null
   /** 근력 세트. 자식 테이블이 아니라 값 덩어리다 — 운동과 항상 함께 바뀐다 */
   sets: WorkoutSet[] | null
   /** 유산소 지속 시간(분) */
   durationMin: number | null
-  intensity: Intensity | null
+  /** 강도 코드값. 라벨은 codes 캐시에서 찾는다 */
+  intensity: string | null
   memo: string | null
 }
 

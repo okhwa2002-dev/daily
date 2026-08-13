@@ -1,4 +1,4 @@
-import type { BodyPart, Intensity, WorkoutKind, WorkoutSet } from '@daily/shared'
+import type { WorkoutKind, WorkoutSet } from '@daily/shared'
 import { db, type LocalWorkout } from '../../db/index.ts'
 import { enqueue, localNow } from '../../sync/outbox.ts'
 
@@ -13,10 +13,12 @@ export interface WorkoutInput {
   occurredOn: string
   kind: WorkoutKind
   name: string
-  bodyPart: BodyPart | null
+  /** 부위 코드값 (codes의 BODY_PART 그룹) */
+  bodyPart: string | null
   sets: WorkoutSet[] | null
   durationMin: number | null
-  intensity: Intensity | null
+  /** 강도 코드값 (codes의 INTENSITY 그룹) */
+  intensity: string | null
   memo: string | null
 }
 

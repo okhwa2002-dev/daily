@@ -10,6 +10,8 @@
  */
 export const CODE_GROUP = {
   BOOK_GENRE: 'BOOK_GENRE',
+  BODY_PART: 'BODY_PART',
+  INTENSITY: 'INTENSITY',
 } as const
 export type CodeGroup = (typeof CODE_GROUP)[keyof typeof CODE_GROUP]
 

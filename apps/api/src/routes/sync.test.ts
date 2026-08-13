@@ -865,4 +865,86 @@ describe('운동 동기화', () => {
     const { body } = await pull(mine)
     expect(body.changes.filter((c) => c.table === 'workouts')).toHaveLength(0)
   })
+
+  // 부위·강도는 codes 테이블이 값 집합을 갖는다. CHECK도 zod enum도 없으므로
+  // 이 대조가 유일한 방어선이다. 장르와 같은 규칙이다.
+  it('모르는 부위 코드는 REJECTED다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'workouts', clientUuid: UUID(5),
+      updatedAt: '2026-08-13T12:00:00+09:00',
+      payload: strength({ bodyPart: 'NO_SUCH_PART' }),
+    }])
+
+    expect(body.results[0]?.status).toBe('REJECTED')
+    expect(await db.select().from(workouts)).toHaveLength(0)
+  })
+
+  it('모르는 강도 코드는 REJECTED다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'workouts', clientUuid: UUID(6),
+      updatedAt: '2026-08-13T12:00:00+09:00',
+      payload: strength({ intensity: 'NO_SUCH_LEVEL' }),
+    }])
+
+    expect(body.results[0]?.status).toBe('REJECTED')
+    expect(await db.select().from(workouts)).toHaveLength(0)
+  })
+
+  /**
+   * 관리자가 부위를 지우는 순간 그 부위를 쓰던 사용자의 오프라인 수정이 전부
+   * 버려지면 안 된다. 장르와 같은 판단이다 — 존재만 보고 deleted_at은 보지 않는다.
+   */
+  it('삭제된 부위 코드도 통과한다', async () => {
+    const now = dbNow()
+    await db.update(codes)
+      .set({ deletedAt: now, deletedBy: 0 })
+      .where(and(eq(codes.groupCode, 'BODY_PART'), eq(codes.code, 'CORE')))
+
+    // 단언이 실패해도 복원이 돌아야 한다 — resetDb가 codes를 건드리지 않으므로,
+    // 여기서 되돌리지 못하면 CORE가 삭제된 채로 이후 모든 실행에 남는다.
+    try {
+      const auth = await tokenFor(await makeUser('a@example.com'))
+      const { body } = await push(auth, [{
+        table: 'workouts', clientUuid: UUID(7),
+        updatedAt: '2026-08-13T12:00:00+09:00',
+        payload: strength({ bodyPart: 'CORE' }),
+      }])
+
+      expect(body.results[0]?.status).toBe('APPLIED')
+    } finally {
+      await db.update(codes)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(and(eq(codes.groupCode, 'BODY_PART'), eq(codes.code, 'CORE')))
+    }
+  })
+
+  /**
+   * 이전의 핵심이다. 관리자가 부위를 새로 넣으면 배포 없이 바로 쓸 수 있어야
+   * 한다 — CHECK가 남아 있으면 여기서 500이 나고, 500은 재시도 대상이라
+   * 그 항목이 큐에서 영원히 빠지지 않는다.
+   */
+  it('관리자가 새로 넣은 부위 코드를 배포 없이 받는다', async () => {
+    await db.insert(codes).values({
+      groupCode: 'BODY_PART', code: 'NECK', name: '목', sortOrder: 8,
+      createdAt: dbNow(), createdBy: 0, updatedAt: dbNow(), updatedBy: 0,
+    })
+
+    try {
+      const auth = await tokenFor(await makeUser('a@example.com'))
+      const { body } = await push(auth, [{
+        table: 'workouts', clientUuid: UUID(8),
+        updatedAt: '2026-08-13T12:00:00+09:00',
+        payload: strength({ bodyPart: 'NECK' }),
+      }])
+
+      expect(body.results[0]?.status).toBe('APPLIED')
+      const [row] = await db.select().from(workouts)
+      expect(row?.bodyPart).toBe('NECK')
+    } finally {
+      await db.delete(codes)
+        .where(and(eq(codes.groupCode, 'BODY_PART'), eq(codes.code, 'NECK')))
+    }
+  })
 })

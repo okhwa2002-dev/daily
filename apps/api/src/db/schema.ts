@@ -5,7 +5,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { columnComments } from './column-comments.ts'
 import {
-  BODY_PART, BOOK_STATUS, EXPENSE_KIND, INTENSITY, MEAL_SLOT, PORTION,
+  BOOK_STATUS, EXPENSE_KIND, MEAL_SLOT, PORTION,
   USER_STATUS, WORKOUT_KIND, type WorkoutSet,
 } from '@daily/shared'
 
@@ -317,10 +317,9 @@ export const workouts = pgTable('workouts', {
   index('workouts_occurred_idx').on(t.userId, t.occurredOn),
   index('workouts_pull_idx').on(t.userId, t.syncedAt, t.id),
   check('workouts_kind_ck', inCodes(t.kind, WORKOUT_KIND)),
-  check('workouts_body_part_ck',
-    sql`${t.bodyPart} IS NULL OR ${inCodes(t.bodyPart, BODY_PART)}`),
-  check('workouts_intensity_ck',
-    sql`${t.intensity} IS NULL OR ${inCodes(t.intensity, INTENSITY)}`),
+  // body_part·intensity에는 CHECK가 없다. 값 집합이 codes 테이블에 있는
+  // 런타임 데이터라 CHECK로 표현할 수 없다 — 서버가 sync 검증 단계에서
+  // codes와 대조한다 (sync/registry.ts의 workouts.validate).
   check('workouts_duration_ck',
     sql`${t.durationMin} IS NULL OR ${t.durationMin} > 0`),
   // kind에 따라 채워지는 필드가 다르다. zod discriminated union과 같은 규칙을 DB에도 건다.
@@ -336,10 +335,10 @@ export const workoutsComments = columnComments(workouts, {
   occurredOn: '기록 대상 날짜',
   kind: '운동 구분 — STRENGTH | CARDIO | ETC. 채워지는 필드가 이 값에 따라 다르다',
   name: '운동 종목. 사용자 자유 입력 (예: 벤치프레스)',
-  bodyPart: '부위 — CHEST | BACK | LEGS | SHOULDERS | ARMS | CORE | FULL_BODY',
+  bodyPart: '부위 코드값 (codes의 BODY_PART 그룹). FK를 걸지 않고 서버가 대조 검증한다',
   sets: '근력 세트 배열. JSONB의 모양은 DB가 막지 못하므로 shared의 zod로 검증한다',
   durationMin: '유산소 지속 시간(분). CARDIO에서만 채운다',
-  intensity: '강도 — LOW | MID | HIGH',
+  intensity: '강도 코드값 (codes의 INTENSITY 그룹). FK를 걸지 않고 서버가 대조 검증한다',
   memo: '사용자 자유 입력',
   ...AUDIT_COMMENTS,
 })

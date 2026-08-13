@@ -43,6 +43,11 @@ describe('책 저장', () => {
   it('장르를 저장하고 읽어온다', async () => {
     const uuid = await saveBook(USER, book({ genre: 'NOVEL' }))
     expect((await getBook(USER, uuid))?.genre).toBe('NOVEL')
+
+    // db.books.put과 enqueue의 payload를 따로 고치는 코드다. 로컬만 보면
+    // 큐 쪽이 input.genre 대신 undefined/null로 새는 것을 못 잡는다.
+    const [row] = await takeBatch(1)
+    expect((row!.payload as { genre: unknown }).genre).toBe('NOVEL')
   })
 
   it('미지정으로 저장하면 장르가 null이다', async () => {

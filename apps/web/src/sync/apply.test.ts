@@ -17,7 +17,7 @@ const bookRow = (over: Partial<SyncRow> = {}): SyncRow => ({
   deletedAt: null,
   payload: {
     title: '사피엔스', author: '유발 하라리', summary: null,
-    status: 'READING', startedOn: null, finishedOn: null,
+    status: 'READING', startedOn: null, finishedOn: null, genre: 'TECH',
   },
   ...over,
 })
@@ -38,6 +38,7 @@ describe('applyServerRows — 독서', () => {
     expect(local?.title).toBe('사피엔스')
     expect(local?.author).toBe('유발 하라리')
     expect(local?.status).toBe('READING')
+    expect(local?.genre).toBe('TECH')
     expect(local?.serverId).toBe(10)
     expect(local?.userId).toBe(USER)
   })

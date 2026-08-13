@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable } from 'dexie'
+import Dexie, { type EntityTable, type Table } from 'dexie'
 import type { BookStatus, ExpenseKind, OutboxOp, SyncTable } from '@daily/shared'
 
 export interface OutboxRow {
@@ -79,6 +79,19 @@ export interface LocalBookNote extends LocalRecord {
   content: string
 }
 
+/**
+ * 공통코드 캐시.
+ *
+ * 동기화 대상이 아니다 — `LocalRecord`를 확장하지 않는다. 사용자가 만드는
+ * 데이터가 아니라 서버에서 통째로 받아 덮어쓰는 읽기 전용 사본이다.
+ */
+export interface LocalCode {
+  groupCode: string
+  code: string
+  name: string
+  sortOrder: number
+}
+
 class DailyDb extends Dexie {
   outbox!: EntityTable<OutboxRow, 'seq'>
   meta!: EntityTable<MetaRow, 'key'>
@@ -87,6 +100,7 @@ class DailyDb extends Dexie {
   syncFailures!: EntityTable<SyncFailureRow, 'id'>
   books!: EntityTable<LocalBook, 'clientUuid'>
   bookNotes!: EntityTable<LocalBookNote, 'clientUuid'>
+  codes!: Table<LocalCode, [string, string]>
 
   constructor() {
     super('daily')
@@ -108,6 +122,10 @@ class DailyDb extends Dexie {
     this.version(3).stores({
       books: 'clientUuid, userId, [userId+status]',
       bookNotes: 'clientUuid, userId, bookClientUuid, [userId+occurredOn]',
+    })
+    // 복합 기본키다. 그룹이 다르면 같은 코드값이 존재할 수 있다.
+    this.version(4).stores({
+      codes: '[groupCode+code], groupCode',
     })
   }
 }

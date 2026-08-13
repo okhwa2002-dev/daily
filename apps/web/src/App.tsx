@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { refreshCodes } from './codes/refresh.ts'
 import TabBar from './components/TabBar.tsx'
 import BookDetailPage from './pages/book/BookDetailPage.tsx'
 import BookListPage from './pages/book/BookListPage.tsx'
@@ -22,6 +23,8 @@ export default function App() {
   // 리스너를 반드시 걷어낸다 — 남겨두면 401을 반복해서 때린다.
   useEffect(() => {
     if (status !== 'AUTHENTICATED' || userId === undefined) return undefined
+    // 코드 캐시는 동기화와 독립이다. 실패해도 던지지 않으므로 기다리지 않는다.
+    void refreshCodes()
     void startSync(userId)
     return () => stopSync()
   }, [status, userId, startSync, stopSync])

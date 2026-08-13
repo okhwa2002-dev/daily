@@ -90,6 +90,15 @@ describe('운동 삭제', () => {
     expect(queued?.op).toBe('DELETE')
   })
 
+  // serverId가 없으면 서버는 이 레코드를 모른다. 툼스톤을 보낼 이유가 없고,
+  // 보내면 서버에 없는 client_uuid로 DELETE가 올라간다.
+  it('서버가 모르는 기록을 지우면 큐에 아무것도 남지 않는다', async () => {
+    const uuid = await saveWorkout(USER, strength())
+    await deleteWorkout(USER, uuid)
+
+    expect(await takeBatch(10)).toHaveLength(0)
+  })
+
   it('남의 레코드는 건드리지 않는다', async () => {
     const uuid = await saveWorkout(USER, strength())
     await deleteWorkout(OTHER, uuid)

@@ -126,6 +126,14 @@ export default function BookForm({ initial, genres, onSubmit, onCancel }: Props)
           className="rounded-lg border border-gray-300 px-3 py-2"
         >
           <option value="">미지정</option>
+          {genre !== '' && !genres.some((g) => g.code === genre) && (
+            // 관리자가 지운 코드다. genres(살아있는 코드만)에는 없지만 이
+            // 책에는 이미 붙어 있으므로, codeLabel이 목록·상세에서 하는
+            // 폴백(코드값 그대로 표시)과 같은 일을 <select>에서도 해준다.
+            // 이 옵션이 없으면 일치하는 <option>이 없어 selectedIndex가
+            // -1이 되고, 값은 상태에 남아 있는데도 화면은 빈칸으로 보인다.
+            <option value={genre}>{genre}</option>
+          )}
           {genres.map((g) => (
             <option key={g.code} value={g.code}>{g.name}</option>
           ))}

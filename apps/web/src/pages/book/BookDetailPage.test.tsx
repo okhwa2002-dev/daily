@@ -111,4 +111,22 @@ describe('책 상세', () => {
     expect((await db.bookNotes.get(noteUuid))?.deletedAt).toBeNull()
     confirmSpy.mockRestore()
   })
+
+  // 목록·상세는 codeLabel로 지워진 코드를 코드값 그대로 보여준다
+  // (BookListPage.test.tsx의 "캐시에 없는 장르는 코드값 그대로 보여준다").
+  // 수정 폼도 같은 규칙을 지켜야 한다 — <select>의 옵션은 genres prop(살아있는
+  // 코드만)에서만 나오므로, 지워진 코드가 선택돼 있으면 일치하는 옵션이 없어
+  // selectedIndex가 -1이 되고 빈칸처럼 보일 수 있다.
+  it('캐시에 없는 장르를 가진 책을 수정 폼에서 열어도 선택값이 남는다', async () => {
+    const uuid = await saveBook(USER.id, {
+      title: '사피엔스', author: null, summary: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: 'GONE',
+    })
+    renderAt(uuid)
+    await screen.findByText('사피엔스')
+
+    await userEvent.click(screen.getByRole('button', { name: '수정' }))
+
+    expect(screen.getByLabelText('장르')).toHaveValue('GONE')
+  })
 })

@@ -75,11 +75,11 @@ describe('bookPayloadSchema', () => {
 })
 
 describe('SCHEMA_VERSION', () => {
-  // books 페이로드에 genre가 추가됐다. 올리지 않으면 구버전 클라이언트가 책을
-  // 수정할 때 genre 없는 페이로드를 보내고, 서버가 null로 덮어 다른 기기에서
-  // 설정한 장르가 조용히 지워진다. LWW라 그 값이 최신이 된다.
-  it('레코드 모양이 바뀌었으므로 3이다', () => {
-    expect(SCHEMA_VERSION).toBe(3)
+  // workouts가 SYNC_TABLE에 추가됐다. 올리지 않으면 구버전 클라이언트가 pull에서
+  // 운동 행을 받고, APPLIERS['workouts']가 undefined라 동기화 루프가 통째로 죽는다.
+  // pull 커서가 그 지점에서 전진하지 못해 그 기기는 이후 어떤 변경도 받지 못한다.
+  it('동기화 테이블이 늘었으므로 4다', () => {
+    expect(SCHEMA_VERSION).toBe(4)
   })
 })
 

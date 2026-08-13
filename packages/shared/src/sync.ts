@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { BOOK_STATUS, EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult } from './codes.ts'
+import {
+  BODY_PART, BOOK_STATUS, EXPENSE_KIND, INTENSITY,
+  OUTBOX_OP, SYNC_RESULT, type SyncResult,
+} from './codes.ts'
+import { workoutSetsSchema } from './workout.ts'
 
 /**
  * push/pull 페이로드의 스키마 버전.
@@ -90,6 +94,53 @@ export const bookNotePayloadSchema = z.object({
   content: z.string().trim().min(1).max(5000),
 }).strict()
 export type BookNotePayload = z.infer<typeof bookNotePayloadSchema>
+
+/** kind와 무관하게 항상 있는 필드. 분기되는 것은 sets·durationMin 둘뿐이다. */
+const workoutBaseShape = {
+  occurredOn: occurredOnSchema,
+  /** 종목은 자유 입력이다. 마스터 테이블을 두지 않는다 */
+  name: z.string().trim().min(1).max(100),
+  bodyPart: z.enum(BODY_PART).nullable().default(null),
+  intensity: z.enum(INTENSITY).nullable().default(null),
+  memo: z.string().max(500).nullable().default(null),
+}
+
+/** 상한은 하루다. 상한이 없으면 오타 하나가 그대로 저장된다. */
+const durationMinSchema = z.number().int().positive().max(1440)
+
+/**
+ * 운동 기록. `kind`에 따라 채워지는 필드가 다르다.
+ *
+ * DB의 `workouts_shape_ck`와 같은 규칙이다. 반대쪽 필드를 "생략 가능"이 아니라
+ * **`z.null()`로 못박는 것**이 핵심이다. `.strict()`와 합쳐져야 'CARDIO인데
+ * sets를 실어 보내는' 요청이 여기서 걸린다. 여기서 안 걸리면 그 요청은 DB
+ * CHECK 위반이 되고, 그 500은 REJECTED가 아니라 재시도 대상이라 그 항목이
+ * 큐에서 영원히 빠지지 않는다.
+ *
+ * `ETC`는 화면에 없지만 스키마에는 남긴다. CHECK가 세 분기이므로 거울도 세
+ * 분기여야 하고, 나중에 화면을 붙일 때 SCHEMA_VERSION을 다시 올리지 않아도 된다.
+ */
+export const workoutPayloadSchema = z.discriminatedUnion('kind', [
+  z.object({
+    ...workoutBaseShape,
+    kind: z.literal('STRENGTH'),
+    sets: workoutSetsSchema,
+    durationMin: z.null().default(null),
+  }).strict(),
+  z.object({
+    ...workoutBaseShape,
+    kind: z.literal('CARDIO'),
+    sets: z.null().default(null),
+    durationMin: durationMinSchema,
+  }).strict(),
+  z.object({
+    ...workoutBaseShape,
+    kind: z.literal('ETC'),
+    sets: workoutSetsSchema.nullable().default(null),
+    durationMin: durationMinSchema.nullable().default(null),
+  }).strict(),
+])
+export type WorkoutPayload = z.infer<typeof workoutPayloadSchema>
 
 // ---------------------------------------------------------------------------
 // push

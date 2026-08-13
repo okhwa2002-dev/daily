@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { bookNotePayloadSchema, bookPayloadSchema, SCHEMA_VERSION } from './sync.ts'
+import {
+  bookNotePayloadSchema, bookPayloadSchema, SCHEMA_VERSION, workoutPayloadSchema,
+} from './sync.ts'
 
 const book = (over: Record<string, unknown> = {}) => ({
   title: '사피엔스', status: 'READING', ...over,
@@ -105,5 +107,94 @@ describe('bookNotePayloadSchema', () => {
 
   it('모르는 키를 거부한다', () => {
     expect(bookNotePayloadSchema.safeParse(note({ bookId: 3 })).success).toBe(false)
+  })
+})
+
+describe('workoutPayloadSchema', () => {
+  const base = { occurredOn: '2026-08-13', name: '벤치프레스' }
+
+  it('근력은 세트를 받고 durationMin은 null이다', () => {
+    const parsed = workoutPayloadSchema.parse({
+      ...base, kind: 'STRENGTH',
+      sets: [{ reps: 10, weightKg: 60 }],
+    })
+    expect(parsed.durationMin).toBeNull()
+    // 안 보낸 선택 필드는 default로 채워져야 한다. undefined로 남으면
+    // toColumns가 그 컬럼을 통째로 빼먹어 수정이 반영되지 않는다.
+    expect(parsed.bodyPart).toBeNull()
+    expect(parsed.intensity).toBeNull()
+    expect(parsed.memo).toBeNull()
+  })
+
+  it('맨몸 운동은 weightKg가 null이다', () => {
+    const parsed = workoutPayloadSchema.parse({
+      ...base, kind: 'STRENGTH', sets: [{ reps: 12, weightKg: null }],
+    })
+    expect(parsed.sets).toEqual([{ reps: 12, weightKg: null }])
+  })
+
+  it('유산소는 지속 시간을 받고 sets는 null이다', () => {
+    const parsed = workoutPayloadSchema.parse({
+      ...base, kind: 'CARDIO', name: '러닝', durationMin: 30, intensity: 'MID',
+    })
+    expect(parsed.sets).toBeNull()
+    expect(parsed.durationMin).toBe(30)
+  })
+
+  // 여기서 안 걸리면 DB의 workouts_shape_ck 위반이 되고, 그 500은
+  // REJECTED가 아니라 재시도 대상이라 그 항목이 큐에서 영원히 빠지지 않는다.
+  it('근력에 durationMin을 실으면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'STRENGTH', sets: [{ reps: 10, weightKg: 60 }], durationMin: 30,
+    }).success).toBe(false)
+  })
+
+  it('유산소에 sets를 실으면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'CARDIO', durationMin: 30, sets: [{ reps: 10, weightKg: 60 }],
+    }).success).toBe(false)
+  })
+
+  it('유산소에 durationMin이 없으면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({ ...base, kind: 'CARDIO' }).success).toBe(false)
+  })
+
+  it('근력에 sets가 없으면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({ ...base, kind: 'STRENGTH' }).success).toBe(false)
+  })
+
+  it('세트가 0개거나 51개면 거부한다', () => {
+    const set = { reps: 10, weightKg: 60 }
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'STRENGTH', sets: [],
+    }).success).toBe(false)
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'STRENGTH', sets: Array.from({ length: 51 }, () => set),
+    }).success).toBe(false)
+  })
+
+  it('지속 시간이 하루를 넘으면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'CARDIO', durationMin: 1441,
+    }).success).toBe(false)
+  })
+
+  it('종목명이 비면 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({
+      ...base, name: '   ', kind: 'CARDIO', durationMin: 30,
+    }).success).toBe(false)
+  })
+
+  // 공통 컬럼이 클라이언트에서 넘어올 경로를 남기지 않는다.
+  it('모르는 키는 거부한다', () => {
+    expect(workoutPayloadSchema.safeParse({
+      ...base, kind: 'CARDIO', durationMin: 30, userId: 9,
+    }).success).toBe(false)
+  })
+
+  it('ETC는 세트도 시간도 없이 통과한다', () => {
+    const parsed = workoutPayloadSchema.parse({ ...base, kind: 'ETC', name: '요가' })
+    expect(parsed.sets).toBeNull()
+    expect(parsed.durationMin).toBeNull()
   })
 })

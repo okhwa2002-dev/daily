@@ -43,12 +43,14 @@ export default function WorkoutPage() {
   const workouts = useLiveQuery(
     () => listWorkoutsByDate(userId, occurredOn), [userId, occurredOn], [],
   )
-  // 자동완성 후보. deps에 workouts를 넣지 않는다 — 이 쿼리는 workouts 값을
-  // 참조하지 않고, workouts는 매 resolve마다 새 배열 참조라 구독이 불필요하게
-  // 자주 재생성된다. liveQuery는 db.workouts 변경을 deps와 무관하게 스스로
-  // 추적하므로, 새 종목 이름은 저장 즉시 후보에 들어온다.
+  // 자동완성 후보. deps에 workouts나 occurredOn을 넣지 않는다 — listRecentNames는
+  // userId만 받고 둘 다 참조하지 않는다. workouts는 매 resolve마다 새 배열
+  // 참조라 구독이 불필요하게 자주 재생성되고, occurredOn도 같은 이유로 날짜를
+  // 넘길 때마다 옵저버블을 다시 만들어 잠깐 [] 로 떨어지는 깜빡임을 만든다.
+  // liveQuery는 db.workouts 변경을 deps와 무관하게 스스로 추적하므로, 새 종목
+  // 이름은 저장 즉시 후보에 들어온다.
   const recentNames = useLiveQuery(
-    () => listRecentNames(userId), [userId, occurredOn], [],
+    () => listRecentNames(userId), [userId], [],
   )
 
   /**

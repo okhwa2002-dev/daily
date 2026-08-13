@@ -63,15 +63,6 @@ export async function listWorkoutsByDate(
   return live(rows)
 }
 
-export async function getWorkout(
-  userId: number,
-  clientUuid: string,
-): Promise<LocalWorkout | undefined> {
-  const row = await db.workouts.get(clientUuid)
-  if (!row || row.userId !== userId || row.deletedAt !== null) return undefined
-  return row
-}
-
 /**
  * 최근에 기록한 종목 이름을 최근순·중복 없이 돌려준다.
  *

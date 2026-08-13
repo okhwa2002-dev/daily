@@ -38,6 +38,13 @@ describe('toSets', () => {
     expect(toSets([{ weightKg: '62.5', reps: '5' }]))
       .toEqual([{ reps: 5, weightKg: 62.5 }])
   })
+
+  // Number('.')는 NaN이고, NaN은 JSON.stringify에서 null이 된다 —
+  // 사용자가 친 무게가 오류 없이 '맨몸'으로 둔갑한다.
+  it('무게가 소수점뿐이면 맨몸으로 떨어뜨리지 NaN을 내보내지 않는다', () => {
+    expect(toSets([{ weightKg: '.', reps: '5' }]))
+      .toEqual([{ reps: 5, weightKg: null }])
+  })
 })
 
 describe('toSetRows', () => {
@@ -48,6 +55,10 @@ describe('toSetRows', () => {
 
   it('세트가 없으면 빈 행 하나로 시작한다', () => {
     expect(toSetRows(null)).toEqual([emptySetRow()])
+  })
+
+  it('빈 배열도 빈 행 하나로 시작한다', () => {
+    expect(toSetRows([])).toEqual([emptySetRow()])
   })
 })
 
@@ -111,5 +122,14 @@ describe('SetRows 화면', () => {
     await user.type(screen.getByLabelText('1세트 횟수'), '5')
 
     expect(json()).toEqual([{ reps: 5, weightKg: 62.5 }])
+  })
+
+  it('무게 칸에 소수점만 치면 빈 칸으로 되돌린다', async () => {
+    const user = userEvent.setup()
+    render(<Harness initial={[emptySetRow()]} />)
+
+    await user.type(screen.getByLabelText('1세트 무게(kg)'), '.')
+
+    expect(screen.getByLabelText('1세트 무게(kg)')).toHaveValue('')
   })
 })

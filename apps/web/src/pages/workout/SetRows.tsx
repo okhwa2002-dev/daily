@@ -31,8 +31,13 @@ function digitsOnly(value: string): string {
 function weightInput(value: string): string {
   const cleaned = value.replace(/[^\d.]/g, '')
   const [whole = '', ...rest] = cleaned.split('.')
+  const decimals = rest.join('').slice(0, 1)
   const head = whole.slice(0, 4)
-  return rest.length === 0 ? head : `${head}.${rest.join('').slice(0, 1)}`
+  // 숫자가 하나도 없으면 빈 칸으로 되돌린다. '.'만 남으면 Number('.')가 NaN이
+  // 되고, NaN은 JSON.stringify에서 null이 되어 서버에 '맨몸'으로 저장된다 —
+  // 사용자가 친 무게가 오류 없이 사라지는 형태다.
+  if (head === '' && decimals === '') return ''
+  return rest.length === 0 ? head : `${head}.${decimals}`
 }
 
 /**
@@ -43,14 +48,23 @@ function weightInput(value: string): string {
  *   거부되고, 사용자는 이유를 알 수 없다.
  * - 무게만 빈 행은 맨몸 운동이다. `0`으로 바꾸지 않는다 — `0kg`과 "무게 없음"은
  *   다르고, 스키마가 둘 다 허용하므로 잘못된 값이 저장까지 통과해 버린다.
+ * **횟수가 빈 행은 여기서 버리지 않는다.** `reps: 0`으로 내보내고 폼이
+ * 걸러낸다 — 사용자가 절반만 채운 행을 말없이 지우면 자기가 뭘 잃었는지
+ * 모른 채 저장이 끝난다. 빈 행(둘 다 빔)과 달리 이건 실수가 아니라
+ * 미완성이라 알려줘야 한다.
  */
 export function toSets(rows: SetRow[]): WorkoutSet[] {
   return rows
     .filter((r) => r.weightKg !== '' || r.reps !== '')
-    .map((r) => ({
-      reps: Number(r.reps),
-      weightKg: r.weightKg === '' ? null : Number(r.weightKg),
-    }))
+    .map((r) => {
+      const weight = Number(r.weightKg)
+      return {
+        reps: Number(r.reps),
+        // 빈 칸은 맨몸이다. Number.isFinite 가드는 이중 방어다 — NaN이 새어
+        // 나가면 JSON.stringify가 null로 바꿔 맨몸으로 둔갑시킨다.
+        weightKg: r.weightKg === '' || !Number.isFinite(weight) ? null : weight,
+      }
+    })
 }
 
 /** 수정 폼의 초기값. 세트가 없으면 빈 행 하나로 시작한다. */

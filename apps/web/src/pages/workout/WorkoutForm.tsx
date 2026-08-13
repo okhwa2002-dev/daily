@@ -19,6 +19,8 @@ type FormKind = (typeof FORM_KINDS)[number]['value']
 
 const NAME_MAX = 100
 const DURATION_MAX = 1440
+/** workoutSetSchema의 reps·weightKg max와 같은 값이다. */
+const SET_VALUE_MAX = 1000
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, '')
@@ -80,6 +82,14 @@ export default function WorkoutForm({
     }
     if (kind === 'STRENGTH' && sets!.some((s) => !Number.isInteger(s.reps) || s.reps < 1)) {
       setError('세트의 횟수를 입력해주세요.')
+      return
+    }
+    // workoutSetSchema의 reps·weightKg max와 같은 값이다. 여기서 안 막으면 로컬에는
+    // 저장되어 목록에 보이는데 서버가 REJECTED로 거른다 — 사용자는 어느 기록이
+    // 안 올라갔는지 알 방법도, 다시 시도할 방법도 없다.
+    if (kind === 'STRENGTH'
+        && sets!.some((s) => s.reps > SET_VALUE_MAX || (s.weightKg ?? 0) > SET_VALUE_MAX)) {
+      setError(`무게와 횟수는 ${SET_VALUE_MAX} 이하여야 합니다.`)
       return
     }
 

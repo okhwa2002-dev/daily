@@ -85,6 +85,56 @@ describe('운동 폼', () => {
     }))
   })
 
+  // workoutSetSchema의 max(1000)과 같은 값. 폼이 안 막으면 로컬에는 저장되어
+  // 목록에 보이는데 서버가 REJECTED로 거른다 — 사용자는 어느 기록이 안
+  // 올라갔는지 알 방법도, 다시 시도할 방법도 없다.
+  it('무게가 1000을 넘으면 저장하지 않고 알린다', async () => {
+    const { onSubmit, user } = setup()
+
+    await user.type(screen.getByLabelText('종목'), '데드리프트')
+    await user.type(screen.getByLabelText('1세트 무게(kg)'), '1500')
+    await user.type(screen.getByLabelText('1세트 횟수'), '5')
+    await user.click(screen.getByRole('button', { name: '기록하기' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('1000')
+  })
+
+  it('횟수가 1000을 넘으면 저장하지 않고 알린다', async () => {
+    const { onSubmit, user } = setup()
+
+    await user.type(screen.getByLabelText('종목'), '팔벌려뛰기')
+    await user.type(screen.getByLabelText('1세트 횟수'), '2000')
+    await user.click(screen.getByRole('button', { name: '기록하기' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('1000')
+  })
+
+  it('유산소 시간이 0이면 저장하지 않고 알린다', async () => {
+    const { onSubmit, user } = setup()
+
+    await user.click(screen.getByRole('button', { name: '유산소' }))
+    await user.type(screen.getByLabelText('종목'), '러닝')
+    await user.type(screen.getByLabelText('시간(분)'), '0')
+    await user.click(screen.getByRole('button', { name: '기록하기' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('시간')
+  })
+
+  it('유산소 시간이 1440을 넘으면 저장하지 않고 알린다', async () => {
+    const { onSubmit, user } = setup()
+
+    await user.click(screen.getByRole('button', { name: '유산소' }))
+    await user.type(screen.getByLabelText('종목'), '러닝')
+    await user.type(screen.getByLabelText('시간(분)'), '1441')
+    await user.click(screen.getByRole('button', { name: '기록하기' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('시간')
+  })
+
   it('세트가 하나도 채워지지 않으면 저장하지 않고 알린다', async () => {
     const { onSubmit, user } = setup()
 
@@ -117,6 +167,10 @@ describe('운동 폼', () => {
       '#workout-name-suggestions option',
     )
     expect([...options].map((o) => o.value)).toEqual(['벤치프레스', '스쿼트'])
+    // 위 단언은 datalist가 DOM에 존재하는지만 본다. list="..."가 지워지거나
+    // id가 오타 나도 이 단언은 여전히 통과하므로, 입력과 datalist가 실제로
+    // 연결됐는지는 이 속성으로 따로 확인해야 한다.
+    expect(screen.getByLabelText('종목')).toHaveAttribute('list', 'workout-name-suggestions')
   })
 
   it('제안에 없는 종목도 그대로 입력된다', async () => {

@@ -21,6 +21,9 @@ function formatSets(sets: LocalWorkout['sets']): string {
 }
 
 function formatCardio(w: LocalWorkout): string {
+  // formatSets와 같은 수준의 방어다. 지금은 스키마·CHECK·폼이 삼중으로 막지만,
+  // apply.ts는 서버 payload를 재검증 없이 Dexie에 쓴다.
+  if (w.durationMin == null) return ''
   const parts = [`${w.durationMin}분`]
   if (w.intensity) parts.push(INTENSITY_LABEL[w.intensity])
   return parts.join(' · ')
@@ -40,17 +43,26 @@ export default function WorkoutPage() {
   const workouts = useLiveQuery(
     () => listWorkoutsByDate(userId, occurredOn), [userId, occurredOn], [],
   )
-  // 목록이 바뀌면 자동완성 후보도 따라 바뀐다.
-  //
-  // 원래 브리프는 deps에 workouts를 넣었으나, workouts는 useLiveQuery가
-  // 매 resolve마다 새 배열 참조를 돌려준다. 그 결과 이 쿼리가 workouts가
-  // 바뀔 때마다(날짜 입력 중 글자 하나마다도) 재구독되어, 테스트에서
-  // datalist가 중간 상태로 렌더링되는 채로 어서션이 실행되는 경합이
-  // 관찰되었다. userId·occurredOn으로 좁혀 실제 의미 있는 변화에만
-  // 재구독하도록 한다 — 한 렌더 늦게 자동완성이 갱신되는 정도는 감수한다.
+  // 자동완성 후보. deps에 workouts를 넣지 않는다 — 이 쿼리는 workouts 값을
+  // 참조하지 않고, workouts는 매 resolve마다 새 배열 참조라 구독이 불필요하게
+  // 자주 재생성된다. liveQuery는 db.workouts 변경을 deps와 무관하게 스스로
+  // 추적하므로, 새 종목 이름은 저장 즉시 후보에 들어온다.
   const recentNames = useLiveQuery(
     () => listRecentNames(userId), [userId, occurredOn], [],
   )
+
+  /**
+   * 날짜를 바꾸면 진행 중인 수정을 취소한다.
+   *
+   * 폼은 제출 시점의 occurredOn을 쓴다 — 새 기록에는 그게 맞지만(지금 보고 있는
+   * 날짜에 넣는다), 수정 중에는 사용자가 건드린 적 없는 그 기록의 날짜가 방금
+   * 훑어본 날짜로 조용히 바뀐다. 목록은 새 날짜인데 폼은 옛 기록을 붙들고 있는
+   * 상태 자체가 앞뒤가 맞지 않으므로, 그 상태를 만들지 않는다.
+   */
+  function handleDateChange(next: string) {
+    setOccurredOn(next)
+    setEditing(null)
+  }
 
   async function handleSubmit(input: WorkoutInput) {
     await saveWorkout(userId, input, editing?.clientUuid)
@@ -85,7 +97,7 @@ export default function WorkoutPage() {
         <input
           type="date"
           value={occurredOn}
-          onChange={(e) => setOccurredOn(e.target.value)}
+          onChange={(e) => handleDateChange(e.target.value)}
           className="rounded-lg border border-gray-300 px-3 py-2"
         />
       </label>

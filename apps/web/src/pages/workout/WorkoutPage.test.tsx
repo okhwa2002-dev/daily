@@ -139,4 +139,24 @@ describe('운동 화면', () => {
 
     expect(await screen.findByText('지난운동')).toBeInTheDocument()
   })
+
+  // 폼은 제출 시점의 occurredOn을 쓴다. 수정 중 날짜를 바꾸면 사용자가 건드린 적
+  // 없는 그 기록의 날짜가 조용히 바뀐다.
+  it('수정 중 날짜를 바꾸면 수정이 취소되어 기록의 날짜가 옮겨가지 않는다', async () => {
+    await put({ occurredOn: TODAY, name: '벤치프레스' })
+
+    const user = userEvent.setup()
+    render(<WorkoutPage />)
+
+    await user.click(await screen.findByRole('button', { name: '벤치프레스 수정' }))
+    await user.clear(screen.getByLabelText('날짜'))
+    await user.type(screen.getByLabelText('날짜'), '2026-08-01')
+
+    // 수정 폼이 닫혀 새 기록 모드로 돌아간다.
+    expect(screen.getByRole('button', { name: '기록하기' })).toBeInTheDocument()
+
+    const rows = await db.workouts.toArray()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.occurredOn).toBe(TODAY)
+  })
 })

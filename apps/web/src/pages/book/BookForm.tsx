@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { kstDate, type BookStatus } from '@daily/shared'
-import type { LocalBook } from '../../db/index.ts'
+import type { LocalBook, LocalCode } from '../../db/index.ts'
 import type { BookInput } from './repository.ts'
 
 /** 화면에 보이는 한글 라벨은 코드값과 분리한다. DB에는 코드값만 들어간다. */
@@ -14,17 +14,19 @@ const STATUSES: BookStatus[] = ['WISHLIST', 'READING', 'DONE']
 
 interface Props {
   initial?: LocalBook
+  genres: LocalCode[]
   onSubmit: (input: BookInput) => Promise<void>
   onCancel?: () => void
 }
 
-export default function BookForm({ initial, onSubmit, onCancel }: Props) {
+export default function BookForm({ initial, genres, onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [author, setAuthor] = useState(initial?.author ?? '')
   const [summary, setSummary] = useState(initial?.summary ?? '')
   const [status, setStatus] = useState<BookStatus>(initial?.status ?? 'WISHLIST')
   const [startedOn, setStartedOn] = useState(initial?.startedOn ?? '')
   const [finishedOn, setFinishedOn] = useState(initial?.finishedOn ?? '')
+  const [genre, setGenre] = useState(initial?.genre ?? '')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -65,6 +67,7 @@ export default function BookForm({ initial, onSubmit, onCancel }: Props) {
         status,
         startedOn: startedOn || null,
         finishedOn: finishedOn || null,
+        genre: genre || null,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장하지 못했습니다.')
@@ -113,6 +116,20 @@ export default function BookForm({ initial, onSubmit, onCancel }: Props) {
           maxLength={100}
           className="rounded-lg border border-gray-300 px-3 py-2"
         />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-sm text-gray-600">장르</span>
+        <select
+          value={genre}
+          onChange={(e) => setGenre(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-2"
+        >
+          <option value="">미지정</option>
+          {genres.map((g) => (
+            <option key={g.code} value={g.code}>{g.name}</option>
+          ))}
+        </select>
       </label>
 
       <label className="flex flex-col gap-1">

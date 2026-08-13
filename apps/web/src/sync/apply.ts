@@ -68,6 +68,7 @@ const APPLIERS: Record<SyncTable, (userId: number, row: SyncRow) => Promise<void
     status: r.payload.status as BookStatus,
     startedOn: (r.payload.startedOn as string | null) ?? null,
     finishedOn: (r.payload.finishedOn as string | null) ?? null,
+    genre: (r.payload.genre as string | null) ?? null,
     updatedAt: r.updatedAt,
     deletedAt: r.deletedAt,
   })),

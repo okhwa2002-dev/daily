@@ -12,7 +12,8 @@ const TODAY = '2026-08-11'
 
 const book = (over: Record<string, unknown> = {}) => ({
   title: '사피엔스', author: null, summary: null,
-  status: 'READING' as const, startedOn: null, finishedOn: null, ...over,
+  status: 'READING' as const, startedOn: null, finishedOn: null,
+  genre: null, ...over,
 })
 
 beforeEach(async () => {
@@ -36,7 +37,19 @@ describe('책 저장', () => {
     await saveBook(USER, book())
     const [row] = await takeBatch(1)
     expect(Object.keys(row!.payload as object).sort())
-      .toEqual(['author', 'finishedOn', 'startedOn', 'status', 'summary', 'title'])
+      .toEqual(['author', 'finishedOn', 'genre', 'startedOn', 'status', 'summary', 'title'])
+  })
+
+  it('장르를 저장하고 읽어온다', async () => {
+    const uuid = await saveBook(USER, book({ genre: 'NOVEL' }))
+    expect((await getBook(USER, uuid))?.genre).toBe('NOVEL')
+  })
+
+  it('미지정으로 저장하면 장르가 null이다', async () => {
+    const uuid = await saveBook(USER, book())
+    expect((await getBook(USER, uuid))?.genre).toBeNull()
+    const [row] = await takeBatch(1)
+    expect((row!.payload as { genre: unknown }).genre).toBeNull()
   })
 
   it('같은 clientUuid로 다시 저장하면 수정이다', async () => {

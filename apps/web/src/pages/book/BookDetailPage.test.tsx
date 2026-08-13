@@ -16,6 +16,7 @@ beforeEach(async () => {
   await db.books.clear()
   await db.bookNotes.clear()
   await db.outbox.clear()
+  await db.codes.clear()
 
   useSession.setState({ user: USER, status: 'AUTHENTICATED', logout: async () => {} })
   useSync.setState({
@@ -36,7 +37,7 @@ const renderAt = (uuid: string) =>
 
 const makeBook = () => saveBook(USER.id, {
   title: '사피엔스', author: '유발 하라리', summary: '인류의 역사',
-  status: 'READING', startedOn: '2026-08-01', finishedOn: null,
+  status: 'READING', startedOn: '2026-08-01', finishedOn: null, genre: null,
 })
 
 const makeNote = (bookUuid: string, occurredOn: string, content: string) =>

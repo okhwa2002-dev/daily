@@ -348,7 +348,7 @@ describe('clearLocalData', () => {
       clientUuid: 'aaaaaaaa-0000-4000-8000-000000000001',
       userId: USER, serverId: 1,
       title: '사피엔스', author: null, summary: null,
-      status: 'READING', startedOn: null, finishedOn: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: null,
       updatedAt: '2026-08-11 12:00:00.000', deletedAt: null,
     })
     await db.bookNotes.put({

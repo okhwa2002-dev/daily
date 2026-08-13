@@ -70,6 +70,8 @@ export interface LocalBook extends LocalRecord {
   status: BookStatus
   startedOn: string | null
   finishedOn: string | null
+  /** 장르 코드값. 라벨은 codes 캐시에서 찾는다 */
+  genre: string | null
 }
 
 export interface LocalBookNote extends LocalRecord {

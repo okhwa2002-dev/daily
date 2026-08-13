@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Navigate, useNavigate, useParams } from 'react-router'
+import { CODE_GROUP } from '@daily/shared'
+import { codeLabel } from '../../codes/label.ts'
+import { listCodes } from '../../codes/repository.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
 import BookForm, { STATUS_LABEL } from './BookForm.tsx'
@@ -29,6 +32,7 @@ export default function BookDetailPage() {
   const notes = useLiveQuery(
     () => listNotesByBook(userId, clientUuid), [userId, clientUuid], [],
   )
+  const genres = useLiveQuery(() => listCodes(CODE_GROUP.BOOK_GENRE), [], [])
 
   if (book === undefined) {
     return <main className="grid min-h-dvh place-items-center">불러오는 중…</main>
@@ -98,7 +102,10 @@ export default function BookDetailPage() {
       </header>
 
       {editing ? (
-        <BookForm initial={book} onSubmit={handleEdit} onCancel={() => setEditing(false)} />
+        <BookForm
+          initial={book} genres={genres} onSubmit={handleEdit}
+          onCancel={() => setEditing(false)}
+        />
       ) : (
         <section className="flex flex-col gap-2 rounded-xl border border-gray-200 p-4">
           <h1 className="text-lg font-semibold">{book.title}</h1>
@@ -107,6 +114,11 @@ export default function BookDetailPage() {
             <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
               {STATUS_LABEL[book.status]}
             </span>
+            {codeLabel(genres, book.genre) && (
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                {codeLabel(genres, book.genre)}
+              </span>
+            )}
             {period && <span className="text-xs text-gray-400">{period}</span>}
           </div>
           {book.summary && (

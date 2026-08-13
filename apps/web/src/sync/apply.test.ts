@@ -55,7 +55,7 @@ describe('applyServerRows — 독서', () => {
     await db.books.put({
       clientUuid: BOOK_UUID, userId: USER, serverId: null,
       title: '내가 고친 제목', author: null, summary: null,
-      status: 'DONE', startedOn: null, finishedOn: null,
+      status: 'DONE', startedOn: null, finishedOn: null, genre: null,
       updatedAt: '2026-08-11 13:00:00.000', deletedAt: null,
     })
 
@@ -75,7 +75,7 @@ describe('recordServerId', () => {
     await db.books.put({
       clientUuid: BOOK_UUID, userId: USER, serverId: null,
       title: '사피엔스', author: null, summary: null,
-      status: 'READING', startedOn: null, finishedOn: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: null,
       updatedAt: '2026-08-11 12:00:00.000', deletedAt: null,
     })
 

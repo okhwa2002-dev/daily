@@ -19,6 +19,7 @@ beforeEach(async () => {
   await db.books.clear()
   await db.bookNotes.clear()
   await db.outbox.clear()
+  await db.codes.clear()
 
   useSession.setState({ user: USER, status: 'AUTHENTICATED', logout: async () => {} })
   useSync.setState({
@@ -39,7 +40,7 @@ describe('책 목록', () => {
   it('책과 감상평 수를 보여준다', async () => {
     const uuid = await saveBook(USER.id, {
       title: '사피엔스', author: '유발 하라리', summary: null,
-      status: 'READING', startedOn: null, finishedOn: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: null,
     })
     await db.bookNotes.put({
       clientUuid: 'bbbbbbbb-0000-4000-8000-000000000002',
@@ -58,11 +59,11 @@ describe('책 목록', () => {
   it('상태 탭으로 거른다', async () => {
     await saveBook(USER.id, {
       title: '읽는 책', author: null, summary: null,
-      status: 'READING', startedOn: null, finishedOn: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: null,
     })
     await saveBook(USER.id, {
       title: '완독한 책', author: null, summary: null,
-      status: 'DONE', startedOn: null, finishedOn: '2026-08-10',
+      status: 'DONE', startedOn: null, finishedOn: '2026-08-10', genre: null,
     })
 
     renderPage()
@@ -128,5 +129,46 @@ describe('책 목록', () => {
     await userEvent.click(screen.getByRole('button', { name: '완독' }))
 
     expect(screen.getByLabelText('완독일')).toHaveValue('2020-01-01')
+  })
+
+  it('장르 라벨을 보여준다', async () => {
+    await db.codes.bulkPut([
+      { groupCode: 'BOOK_GENRE', code: 'NOVEL', name: '소설', sortOrder: 1 },
+    ])
+    await saveBook(USER.id, {
+      title: '사피엔스', author: null, summary: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: 'NOVEL',
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('소설')).toBeInTheDocument()
+  })
+
+  // 관리자가 지운 장르를 쓰던 기록이 빈칸이 되면 안 된다.
+  it('캐시에 없는 장르는 코드값 그대로 보여준다', async () => {
+    await saveBook(USER.id, {
+      title: '사피엔스', author: null, summary: null,
+      status: 'READING', startedOn: null, finishedOn: null, genre: 'GONE',
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('GONE')).toBeInTheDocument()
+  })
+
+  it('장르 선택지가 sortOrder 순으로 뜬다', async () => {
+    await db.codes.bulkPut([
+      { groupCode: 'BOOK_GENRE', code: 'ESSAY', name: '에세이', sortOrder: 2 },
+      { groupCode: 'BOOK_GENRE', code: 'NOVEL', name: '소설', sortOrder: 1 },
+    ])
+
+    renderPage()
+    await screen.findByText('등록한 책이 없습니다.')
+    await userEvent.click(screen.getByRole('button', { name: '+ 책' }))
+
+    const options = await screen.findAllByRole('option')
+    expect(options.map((o) => o.textContent))
+      .toEqual(['미지정', '소설', '에세이'])
   })
 })

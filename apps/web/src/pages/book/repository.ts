@@ -16,6 +16,8 @@ export interface BookInput {
   status: BookStatus
   startedOn: string | null
   finishedOn: string | null
+  /** 장르 코드값 (codes의 BOOK_GENRE 그룹). 미지정이면 null */
+  genre: string | null
 }
 
 export interface BookNoteInput {
@@ -105,6 +107,7 @@ export async function saveBook(
       status: input.status,
       startedOn: input.startedOn,
       finishedOn: input.finishedOn,
+      genre: input.genre,
       updatedAt,
       deletedAt: null,
     })
@@ -119,6 +122,7 @@ export async function saveBook(
         status: input.status,
         startedOn: input.startedOn,
         finishedOn: input.finishedOn,
+        genre: input.genre,
       },
       updatedAt,
       everSynced: existing?.serverId != null,

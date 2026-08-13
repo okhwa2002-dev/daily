@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router'
-import type { BookStatus } from '@daily/shared'
+import { CODE_GROUP, type BookStatus } from '@daily/shared'
 import SyncStatus from '../../components/SyncStatus.tsx'
+import { codeLabel } from '../../codes/label.ts'
+import { listCodes } from '../../codes/repository.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
 import BookForm, { STATUS_LABEL } from './BookForm.tsx'
@@ -30,6 +32,7 @@ export default function BookListPage() {
   // 모두 자동으로 반영하므로 저장 후 목록을 다시 불러오는 코드가 필요 없다.
   const books = useLiveQuery(() => listBooks(userId, filter), [userId, filter], [])
   const noteCounts = useLiveQuery(() => countNotesByBook(userId), [userId], new Map())
+  const genres = useLiveQuery(() => listCodes(CODE_GROUP.BOOK_GENRE), [], [])
 
   async function handleSubmit(input: BookInput) {
     await saveBook(userId, input)
@@ -74,7 +77,7 @@ export default function BookListPage() {
       )}
 
       {adding ? (
-        <BookForm onSubmit={handleSubmit} onCancel={() => setAdding(false)} />
+        <BookForm genres={genres} onSubmit={handleSubmit} onCancel={() => setAdding(false)} />
       ) : (
         <button
           type="button"
@@ -104,6 +107,11 @@ export default function BookListPage() {
                     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                       {STATUS_LABEL[b.status]}
                     </span>
+                    {codeLabel(genres, b.genre) && (
+                      <span className="text-xs text-gray-500">
+                        {codeLabel(genres, b.genre)}
+                      </span>
+                    )}
                     {(noteCounts.get(b.clientUuid) ?? 0) > 0 && (
                       <span className="text-xs text-gray-400">
                         감상평 {noteCounts.get(b.clientUuid)}

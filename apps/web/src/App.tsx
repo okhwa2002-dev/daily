@@ -7,6 +7,7 @@ import BookListPage from './pages/book/BookListPage.tsx'
 import ExpensePage from './pages/expense/ExpensePage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
+import WorkoutPage from './pages/workout/WorkoutPage.tsx'
 import { useSession } from './store/session.ts'
 import { useSync } from './store/sync.ts'
 
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/books" element={<><BookListPage /><TabBar /></>} />
             {/* 상세는 목록 안쪽 화면이다. 탭바를 두면 돌아올 자리를 잃는다 */}
             <Route path="/books/:clientUuid" element={<BookDetailPage />} />
+            <Route path="/workouts" element={<><WorkoutPage /><TabBar /></>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (

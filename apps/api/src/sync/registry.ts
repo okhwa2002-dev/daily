@@ -2,12 +2,13 @@ import type { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
 import {
   bookNotePayloadSchema, bookPayloadSchema, CODE_GROUP,
-  expenseCategoryPayloadSchema, expensePayloadSchema,
+  expenseCategoryPayloadSchema, expensePayloadSchema, workoutPayloadSchema,
   type BookNotePayload, type BookPayload,
   type ExpenseCategoryPayload, type ExpensePayload, type SyncTable,
+  type WorkoutPayload,
 } from '@daily/shared'
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { bookNotes, books, codes, expenseCategories, expenses } from '../db/schema.ts'
+import { bookNotes, books, codes, expenseCategories, expenses, workouts } from '../db/schema.ts'
 import type { OwnedTable } from '../db/ownership.ts'
 import { db } from '../db/pool.ts'
 
@@ -89,7 +90,7 @@ export type AnyPayload = Record<string, unknown>
  * 고쳐야 하고, 그중 하나를 빠뜨리는 것이 1단계에서 반복된 실패 방식이었다.
  * 여기 한 항목을 추가하면 세 곳이 함께 따라온다.
  *
- * 나머지 도메인(운동·식사·일기)은 화면이 만들어지는 시점에 추가한다.
+ * 나머지 도메인(식사·일기)은 화면이 만들어지는 시점에 추가한다.
  */
 export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
   expense_categories: define<ExpenseCategoryPayload>({
@@ -198,6 +199,42 @@ export const SYNC_REGISTRY: { [K in SyncTable]: SyncTableDef<AnyPayload> } = {
       occurredOn: r.occurredOn,
       bookClientUuid: r.bookClientUuid,
       content: r.content,
+    }),
+  }),
+  /**
+   * 운동. 부모 참조도 `validate`도 없다.
+   *
+   * `validate`는 zod로 막을 수 없는 것만 오는 자리다. 운동의 코드값은 전부
+   * `codes.ts`의 정적 집합이라 `z.enum`에서 걸린다 — `BOOK_GENRE`가 여기를
+   * 쓰는 것은 값 집합이 DB의 `codes` 테이블에 있어서다.
+   *
+   * `sets`는 손대지 않고 그대로 넘긴다. `jsonb` 컬럼이 객체를 다루므로
+   * `JSON.stringify`를 끼워 넣으면 따옴표로 감싼 문자열이 저장되고,
+   * `workouts_shape_ck`는 `IS NOT NULL`까지만 보므로 그걸 막지 못한다.
+   */
+  workouts: define<WorkoutPayload>({
+    table: workouts,
+    payload: workoutPayloadSchema,
+    hasOccurredOn: true,
+    toColumns: (p: WorkoutPayload) => ({
+      occurredOn: p.occurredOn,
+      kind: p.kind,
+      name: p.name,
+      bodyPart: p.bodyPart,
+      sets: p.sets,
+      durationMin: p.durationMin,
+      intensity: p.intensity,
+      memo: p.memo,
+    }),
+    toPayload: (r) => ({
+      occurredOn: r.occurredOn,
+      kind: r.kind,
+      name: r.name,
+      bodyPart: r.bodyPart,
+      sets: r.sets,
+      durationMin: r.durationMin,
+      intensity: r.intensity,
+      memo: r.memo,
     }),
   }),
 }

@@ -16,7 +16,7 @@ import { workoutSetsSchema } from './workout.ts'
  * 테이블의 행을 받으면 `APPLIERS[row.table]`이 undefined라 동기화 루프가
  * 통째로 죽는다. 사용자에게는 "기록이 안 올라감"으로만 보인다.
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 /** 한 번에 밀어넣을 수 있는 변경 수. 상한이 없으면 요청 하나가 DB를 오래 잡는다. */
 export const PUSH_MAX_CHANGES = 500
@@ -26,7 +26,7 @@ export const PULL_MAX_LIMIT = 500
 
 /** 동기화 대상 테이블. 서버 테이블명과 정확히 같다. */
 export const SYNC_TABLE = [
-  'expense_categories', 'expenses', 'books', 'book_notes',
+  'expense_categories', 'expenses', 'books', 'book_notes', 'workouts',
 ] as const
 export type SyncTable = (typeof SYNC_TABLE)[number]
 

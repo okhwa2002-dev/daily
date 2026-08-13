@@ -6,6 +6,7 @@ import { applyServerRows, recordServerId } from './apply.ts'
 const USER = 1
 const BOOK_UUID = 'aaaaaaaa-0000-4000-8000-000000000001'
 const NOTE_UUID = 'bbbbbbbb-0000-4000-8000-000000000002'
+const WORKOUT_UUID = 'cccccccc-0000-4000-8000-000000000003'
 
 beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()))
@@ -96,5 +97,60 @@ describe('recordServerId', () => {
     await recordServerId('book_notes', NOTE_UUID, 43)
 
     expect((await db.bookNotes.get(NOTE_UUID))?.serverId).toBe(43)
+  })
+})
+
+const workoutRow = (over: Partial<SyncRow> = {}): SyncRow => ({
+  table: 'workouts', id: 30, clientUuid: WORKOUT_UUID, occurredOn: '2026-08-13',
+  updatedAt: '2026-08-13 12:00:00.000', syncedAt: '2026-08-13 12:00:00.500',
+  deletedAt: null,
+  payload: {
+    occurredOn: '2026-08-13', kind: 'STRENGTH', name: '벤치프레스',
+    bodyPart: 'CHEST', sets: [{ reps: 10, weightKg: 60 }],
+    durationMin: null, intensity: 'MID', memo: null,
+  },
+  ...over,
+})
+
+describe('applyServerRows — 운동', () => {
+  it('서버에서 내려온 운동을 세트까지 로컬에 넣는다', async () => {
+    await applyServerRows(USER, [workoutRow()])
+
+    const local = await db.workouts.get(WORKOUT_UUID)
+    expect(local?.name).toBe('벤치프레스')
+    expect(local?.kind).toBe('STRENGTH')
+    expect(local?.bodyPart).toBe('CHEST')
+    expect(local?.intensity).toBe('MID')
+    // APPLIERS에서 sets 줄이 통째로 빠져도 나머지 단언은 전부 통과한다.
+    expect(local?.sets).toEqual([{ reps: 10, weightKg: 60 }])
+    expect(local?.serverId).toBe(30)
+  })
+
+  it('유산소는 durationMin이 채워지고 sets는 null이다', async () => {
+    await applyServerRows(USER, [workoutRow({
+      payload: {
+        occurredOn: '2026-08-13', kind: 'CARDIO', name: '러닝', bodyPart: null,
+        sets: null, durationMin: 30, intensity: null, memo: null,
+      },
+    })])
+
+    const local = await db.workouts.get(WORKOUT_UUID)
+    expect(local?.durationMin).toBe(30)
+    expect(local?.sets).toBeNull()
+  })
+})
+
+describe('recordServerId — 운동', () => {
+  it('운동의 serverId를 운동 스토어에 기록한다', async () => {
+    await db.workouts.put({
+      clientUuid: WORKOUT_UUID, userId: USER, serverId: null,
+      occurredOn: '2026-08-13', kind: 'CARDIO', name: '러닝', bodyPart: null,
+      sets: null, durationMin: 30, intensity: null, memo: null,
+      updatedAt: '2026-08-13 12:00:00.000', deletedAt: null,
+    })
+
+    await recordServerId('workouts', WORKOUT_UUID, 44)
+
+    expect((await db.workouts.get(WORKOUT_UUID))?.serverId).toBe(44)
   })
 })

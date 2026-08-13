@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { SCHEMA_VERSION, type PullResponse, type PushResponse } from '@daily/shared'
 import { buildApp } from '../app.ts'
 import { db, pool } from '../db/pool.ts'
-import { bookNotes, books, codes, expenseCategories, expenses, users } from '../db/schema.ts'
+import { bookNotes, books, codes, expenseCategories, expenses, users, workouts } from '../db/schema.ts'
 import { dbNow, padMillis } from '../db/time.ts'
 import { resetDb, testLoginId } from '../db/testing.ts'
 import { issueAccessToken } from '../auth/tokens.ts'
@@ -31,7 +31,7 @@ async function tokenFor(userId: number) {
 }
 
 interface ChangeInput {
-  table: 'expenses' | 'expense_categories' | 'books' | 'book_notes'
+  table: 'expenses' | 'expense_categories' | 'books' | 'book_notes' | 'workouts'
   clientUuid: string
   op?: 'UPSERT' | 'DELETE'
   updatedAt: string
@@ -71,6 +71,7 @@ async function settle() {
   await db.update(expenseCategories).set({ syncedAt: past })
   await db.update(books).set({ syncedAt: past })
   await db.update(bookNotes).set({ syncedAt: past })
+  await db.update(workouts).set({ syncedAt: past })
 }
 
 const expensePayload = (amount: string, extra: Record<string, unknown> = {}) => ({
@@ -795,5 +796,73 @@ describe('독서 — 부모-자식 동기화', () => {
     const book = body.changes.find((c) => c.table === 'books')
     expect(book?.occurredOn).toBeNull()
     expect(book?.payload.title).toBe('사피엔스')
+  })
+})
+
+describe('운동 동기화', () => {
+  const strength = (over: Record<string, unknown> = {}) => ({
+    occurredOn: TODAY, kind: 'STRENGTH', name: '벤치프레스', bodyPart: 'CHEST',
+    sets: [{ reps: 10, weightKg: 60 }, { reps: 8, weightKg: 60 }], ...over,
+  })
+
+  it('세트를 JSONB로 저장하고 pull에서 객체 배열 그대로 내려준다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'workouts', clientUuid: UUID(1),
+      updatedAt: '2026-08-13T12:00:00+09:00', payload: strength(),
+    }])
+    expect(body.results[0]?.status).toBe('APPLIED')
+
+    // 손으로 JSON.stringify를 끼워 넣으면 여기서 문자열이 나온다.
+    // CHECK는 그걸 막지 못하므로 이 단언이 유일한 방어다.
+    const [row] = await db.select().from(workouts)
+    expect(row?.sets).toEqual([{ reps: 10, weightKg: 60 }, { reps: 8, weightKg: 60 }])
+    expect(row?.durationMin).toBeNull()
+
+    await settle()
+    const { body: pulled } = await pull(auth)
+    const change = pulled.changes.find((c) => c.table === 'workouts')
+    expect(change?.payload.sets).toEqual([{ reps: 10, weightKg: 60 }, { reps: 8, weightKg: 60 }])
+    expect(change?.occurredOn).toBe(TODAY)
+  })
+
+  it('유산소는 durationMin을 저장하고 sets는 비운다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { body } = await push(auth, [{
+      table: 'workouts', clientUuid: UUID(2),
+      updatedAt: '2026-08-13T12:00:00+09:00',
+      payload: { occurredOn: TODAY, kind: 'CARDIO', name: '러닝', durationMin: 30 },
+    }])
+    expect(body.results[0]?.status).toBe('APPLIED')
+
+    const [row] = await db.select().from(workouts)
+    expect(row?.durationMin).toBe(30)
+    expect(row?.sets).toBeNull()
+  })
+
+  // REJECTED여야 한다. 500이면 재시도 대상이라 큐가 이 항목에서 막힌다.
+  it('모양이 깨진 세트는 REJECTED로 돌려준다', async () => {
+    const auth = await tokenFor(await makeUser('a@example.com'))
+    const { res, body } = await push(auth, [{
+      table: 'workouts', clientUuid: UUID(3),
+      updatedAt: '2026-08-13T12:00:00+09:00',
+      payload: strength({ sets: [{ weightKg: 60 }] }),
+    }])
+    expect(res.statusCode).toBe(200)
+    expect(body.results[0]?.status).toBe('REJECTED')
+    expect(await db.select().from(workouts)).toHaveLength(0)
+  })
+
+  it('남의 운동은 pull로 내려오지 않는다', async () => {
+    const mine = await tokenFor(await makeUser('a@example.com'))
+    const theirs = await tokenFor(await makeUser('b@example.com'))
+    await push(theirs, [{
+      table: 'workouts', clientUuid: UUID(4),
+      updatedAt: '2026-08-13T12:00:00+09:00', payload: strength(),
+    }])
+    await settle()
+
+    const { body } = await pull(mine)
+    expect(body.changes.filter((c) => c.table === 'workouts')).toHaveLength(0)
   })
 })

@@ -110,9 +110,13 @@ describe('운동 폼', () => {
 
   it('최근 종목을 제안한다', () => {
     setup()
-    // datalist는 UA 스타일시트에서 display:none이라 testing-library가
-    // 기본적으로 접근성 트리에서 제외한다. hidden: true로 그 필터를 끈다.
-    expect(screen.getByRole('option', { name: '벤치프레스', hidden: true })).toBeInTheDocument()
+    // option은 value만 채운 표준 형태라 접근성 이름이 비어 getByRole로
+    // 이름 매칭을 할 수 없다. value로 직접 확인하고, 순서도 함께 고정한다 —
+    // listRecentNames가 보장하는 최근순이 이 순서로 그대로 전달돼야 한다.
+    const options = document.querySelectorAll<HTMLOptionElement>(
+      '#workout-name-suggestions option',
+    )
+    expect([...options].map((o) => o.value)).toEqual(['벤치프레스', '스쿼트'])
   })
 
   it('제안에 없는 종목도 그대로 입력된다', async () => {

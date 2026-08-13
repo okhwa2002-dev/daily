@@ -152,9 +152,10 @@ export default function WorkoutForm({
         getByLabelText('종목')이 더 이상 정확히 매치되지 않는다.
       */}
       <datalist id="workout-name-suggestions">
-        {/* 텍스트 콘텐츠를 넣는다. value만 있으면 화면에도 빈 항목으로 보이고
-            접근성 트리의 이름도 비어 getByRole 이름 매칭이 실패한다 */}
-        {recentNames.map((n) => <option key={n} value={n}>{n}</option>)}
+        {/* value만 채운다 — 이게 표준 형태다. 텍스트 콘텐츠를 넣으면 Chrome이
+            값과 라벨을 중복으로 보여주고, 그 텍스트가 getByText류 쿼리에도
+            그대로 잡혀 화면의 운동 이름 표시와 충돌한다. */}
+        {recentNames.map((n) => <option key={n} value={n} />)}
       </datalist>
 
       <div className="flex gap-2">

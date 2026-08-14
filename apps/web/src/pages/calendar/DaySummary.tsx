@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { codeLabel } from '../../codes/label.ts'
-import type { LocalCode, LocalWorkout } from '../../db/index.ts'
+import type { LocalCode } from '../../db/index.ts'
 import { formatMinorUnits, toMinorUnits } from '../../lib/money.ts'
+import { formatCardio, formatSets } from '../../lib/workoutFormat.ts'
 import type { DayRecords } from './repository.ts'
 
 /**
@@ -22,30 +23,6 @@ interface Props {
   categoryNames: Map<string, string>
   bodyParts: LocalCode[]
   intensities: LocalCode[]
-}
-
-/**
- * `60kg×10, ×12` — 맨몸 세트는 무게 없이 횟수만 적는다.
- *
- * `WorkoutPage`에도 같은 이름의 함수가 있지만 재사용하지 않는다. 기능
- * 폴더를 임포트하지 않기로 했고, 요약의 축약 방식은 기능 화면과 갈라진다.
- *
- * `sets`가 null인 근력 기록을 방어하는 것은 `apply.ts`가 서버 페이로드를
- * 재검증 없이 Dexie에 쓰기 때문이다. 이 방어는 화면마다 필요하다.
- */
-function formatSets(sets: LocalWorkout['sets']): string {
-  if (!sets || sets.length === 0) return ''
-  return sets
-    .map((s) => (s.weightKg === null ? `×${s.reps}` : `${s.weightKg}kg×${s.reps}`))
-    .join(', ')
-}
-
-function formatCardio(w: LocalWorkout, intensities: LocalCode[]): string {
-  if (w.durationMin == null) return ''
-  const parts = [`${w.durationMin}분`]
-  const label = codeLabel(intensities, w.intensity)
-  if (label) parts.push(label)
-  return parts.join(' · ')
 }
 
 function Section(

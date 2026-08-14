@@ -5,8 +5,9 @@ import { CODE_GROUP } from '@daily/shared'
 import { codeLabel } from '../../codes/label.ts'
 import { listCodes } from '../../codes/repository.ts'
 import { dateParam } from '../../lib/dateParam.ts'
+import { formatCardio, formatSets } from '../../lib/workoutFormat.ts'
 import SyncStatus from '../../components/SyncStatus.tsx'
-import type { LocalCode, LocalWorkout } from '../../db/index.ts'
+import type { LocalWorkout } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
 import WorkoutForm from './WorkoutForm.tsx'
@@ -14,24 +15,6 @@ import {
   deleteWorkout, listRecentNames, listWorkoutsByDate, saveWorkout,
   type WorkoutInput,
 } from './repository.ts'
-
-/** `60kg×10, ×12` — 맨몸 세트는 무게 없이 횟수만 적는다. */
-function formatSets(sets: LocalWorkout['sets']): string {
-  if (!sets || sets.length === 0) return ''
-  return sets
-    .map((s) => (s.weightKg === null ? `×${s.reps}` : `${s.weightKg}kg×${s.reps}`))
-    .join(', ')
-}
-
-function formatCardio(w: LocalWorkout, intensities: LocalCode[]): string {
-  // formatSets와 같은 수준의 방어다. 지금은 스키마·폼이 이중으로 막지만,
-  // apply.ts는 서버 payload를 재검증 없이 Dexie에 쓴다.
-  if (w.durationMin == null) return ''
-  const parts = [`${w.durationMin}분`]
-  const label = codeLabel(intensities, w.intensity)
-  if (label) parts.push(label)
-  return parts.join(' · ')
-}
 
 export default function WorkoutPage() {
   const user = useSession((s) => s.user)

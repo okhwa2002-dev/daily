@@ -6,7 +6,12 @@
  * 지출 화면과 캘린더 요약이 같은 함수를 쓰게 여기에 둔다.
  */
 
-/** 금액 문자열을 부동소수점을 거치지 않고 최소 단위 정수로 바꾼다. */
+/**
+ * 금액 문자열을 부동소수점을 거치지 않고 최소 단위 정수로 바꾼다.
+ *
+ * 입력은 항상 0 이상이다 — 부호는 소수부가 아니라 레코드의 kind가 가지므로,
+ * 음수 문자열(`'-1.50'`)을 넣으면 정수부에만 부호가 붙어 잘못된 값이 나온다.
+ */
 export function toMinorUnits(amount: string): bigint {
   const [whole = '0', frac = ''] = amount.split('.')
   return BigInt(whole) * 100n + BigInt(frac.padEnd(2, '0').slice(0, 2))

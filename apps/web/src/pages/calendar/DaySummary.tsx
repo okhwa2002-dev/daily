@@ -35,7 +35,7 @@ function Section(
         <h3 className="text-sm font-medium text-gray-900">{title}</h3>
         <div className="flex items-baseline gap-2">
           <span className="text-sm text-gray-600">{note}</span>
-          <Link to={to} aria-label={`${title} 화면으로`} className="text-xs text-gray-400 underline">
+          <Link to={to} aria-label={`${title} 자세히 보기`} className="text-xs text-gray-400 underline">
             자세히
           </Link>
         </div>
@@ -68,11 +68,9 @@ export default function DaySummary({ date, records, categoryNames, bodyParts, in
           {expenses.map((e) => (
             <li key={e.clientUuid} className="flex justify-between gap-2 text-sm">
               <span className="min-w-0 truncate text-gray-600">
-                {e.categoryClientUuid !== null && (
-                  <span className="text-gray-900">
-                    {categoryNames.get(e.categoryClientUuid) ?? ''}
-                  </span>
-                )}
+                <span className="text-gray-900">
+                  {(e.categoryClientUuid === null ? undefined : categoryNames.get(e.categoryClientUuid)) ?? '미분류'}
+                </span>
                 {e.memo && <span className="ml-2">{e.memo}</span>}
               </span>
               <span className="shrink-0 tabular-nums text-gray-900">

@@ -8,7 +8,7 @@ import { useSync } from '../../store/sync.ts'
 import DaySummary from './DaySummary.tsx'
 import MonthGrid from './MonthGrid.tsx'
 import { addMonths, monthLabel, monthOf } from './month.ts'
-import { listCategoryNames, loadMonth, type MonthRecords } from './repository.ts'
+import { listCategoryNames, loadMonth, type DayRecords } from './repository.ts'
 
 /**
  * 일자별 기록 현황.
@@ -34,7 +34,7 @@ export default function CalendarPage() {
   // 초기값에 타입을 명시한다. 빈 `new Map()`을 그냥 주면 추론이 넓어져
   // `records.get(selected)`의 반환 타입이 DaySummary의 props와 어긋난다.
   const records = useLiveQuery(
-    () => loadMonth(userId, month), [userId, month], new Map() as MonthRecords,
+    () => loadMonth(userId, month), [userId, month], new Map<string, DayRecords>(),
   )
   const categoryNames = useLiveQuery(
     () => listCategoryNames(userId), [userId], new Map<string, string>(),

@@ -57,6 +57,17 @@ describe('월 격자', () => {
       .toBeInTheDocument()
   })
 
+  it('세 도메인이 모두 있으면 순서대로 나열한다', () => {
+    render(<MonthGrid {...base} records={records({
+      '2026-08-14': {
+        expenses: [{} as never], workouts: [{} as never], bookNotes: [{} as never],
+      },
+    })} />)
+
+    expect(screen.getByRole('button', { name: '8월 14일, 지출·운동·독서 기록' }))
+      .toBeInTheDocument()
+  })
+
   it('기록이 있는 도메인 수만큼 점을 찍는다', () => {
     const { container } = render(<MonthGrid {...base} records={records({
       '2026-08-14': { expenses: [{} as never], bookNotes: [{} as never] },

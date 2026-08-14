@@ -70,6 +70,20 @@ describe('하루 요약', () => {
     expect(screen.getByText('김밥')).toBeInTheDocument()
   })
 
+  // ExpenseForm은 카테고리 select를 ''(→ null)로 초기화하므로, 손대지 않고
+  // 저장한 지출은 categoryClientUuid가 null이다. ExpensePage와 같은 표기여야 한다.
+  it('카테고리가 없으면 미분류로 표시한다', () => {
+    draw(day({ expenses: [expense({ categoryClientUuid: null })] }))
+    expect(screen.getByText('미분류')).toBeInTheDocument()
+  })
+
+  // 카테고리가 삭제되면 listCategoryNames의 결과(categoryNames)에서 빠진다.
+  // 기록 자체는 남아있으므로 빈칸이 아니라 미분류로 보여야 한다.
+  it('카테고리가 삭제됐으면 미분류로 표시한다', () => {
+    draw(day({ expenses: [expense({ categoryClientUuid: 'cat-deleted' })] }))
+    expect(screen.getByText('미분류')).toBeInTheDocument()
+  })
+
   it('근력은 세트를 줄여 보여준다', () => {
     draw(day({ workouts: [workout({
       sets: [{ reps: 10, weightKg: 60 }, { reps: 12, weightKg: null }],
@@ -114,9 +128,9 @@ describe('하루 요약', () => {
   it('지출·운동 링크는 보던 날짜를 들고 간다', () => {
     draw(day({ expenses: [expense()], workouts: [workout()] }))
 
-    expect(screen.getByRole('link', { name: '지출 화면으로' }))
+    expect(screen.getByRole('link', { name: '지출 자세히 보기' }))
       .toHaveAttribute('href', '/expenses?date=2026-08-14')
-    expect(screen.getByRole('link', { name: '운동 화면으로' }))
+    expect(screen.getByRole('link', { name: '운동 자세히 보기' }))
       .toHaveAttribute('href', '/workouts?date=2026-08-14')
   })
 
@@ -124,7 +138,7 @@ describe('하루 요약', () => {
   it('독서 링크는 날짜를 넘기지 않는다', () => {
     draw(day({ bookNotes: [note()] }))
 
-    expect(screen.getByRole('link', { name: '독서 화면으로' }))
+    expect(screen.getByRole('link', { name: '독서 자세히 보기' }))
       .toHaveAttribute('href', '/books')
   })
 })

@@ -6,6 +6,7 @@ import BookDetailPage from './pages/book/BookDetailPage.tsx'
 import BookListPage from './pages/book/BookListPage.tsx'
 import CalendarPage from './pages/calendar/CalendarPage.tsx'
 import ExpensePage from './pages/expense/ExpensePage.tsx'
+import MyPage from './pages/my/MyPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
 import WorkoutPage from './pages/workout/WorkoutPage.tsx'
@@ -41,11 +42,12 @@ export default function App() {
         {status === 'AUTHENTICATED' ? (
           <>
             <Route path="/" element={<><CalendarPage /><TabBar /></>} />
-            <Route path="/expenses" element={<><ExpensePage /><TabBar /></>} />
-            <Route path="/books" element={<><BookListPage /><TabBar /></>} />
-            {/* 상세는 목록 안쪽 화면이다. 탭바를 두면 돌아올 자리를 잃는다 */}
+            <Route path="/my" element={<><MyPage /><TabBar /></>} />
+            {/* 아래 넷은 마이 탭 안쪽 화면이다. 탭바를 두면 돌아올 자리를 잃는다 */}
+            <Route path="/expenses" element={<ExpensePage />} />
+            <Route path="/books" element={<BookListPage />} />
             <Route path="/books/:clientUuid" element={<BookDetailPage />} />
-            <Route path="/workouts" element={<><WorkoutPage /><TabBar /></>} />
+            <Route path="/workouts" element={<WorkoutPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (

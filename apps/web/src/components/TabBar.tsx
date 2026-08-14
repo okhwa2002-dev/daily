@@ -8,7 +8,8 @@ import { NavLink } from 'react-router'
  * 나가면 돌아올 자리를 잃는다.
  */
 const TABS = [
-  { to: '/', label: '지출' },
+  { to: '/', label: '홈' },
+  { to: '/expenses', label: '지출' },
   { to: '/books', label: '독서' },
   { to: '/workouts', label: '운동' },
 ] as const

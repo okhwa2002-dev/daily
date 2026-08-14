@@ -4,6 +4,7 @@ import { refreshCodes } from './codes/refresh.ts'
 import TabBar from './components/TabBar.tsx'
 import BookDetailPage from './pages/book/BookDetailPage.tsx'
 import BookListPage from './pages/book/BookListPage.tsx'
+import CalendarPage from './pages/calendar/CalendarPage.tsx'
 import ExpensePage from './pages/expense/ExpensePage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
@@ -39,7 +40,8 @@ export default function App() {
       <Routes>
         {status === 'AUTHENTICATED' ? (
           <>
-            <Route path="/" element={<><ExpensePage /><TabBar /></>} />
+            <Route path="/" element={<><CalendarPage /><TabBar /></>} />
+            <Route path="/expenses" element={<><ExpensePage /><TabBar /></>} />
             <Route path="/books" element={<><BookListPage /><TabBar /></>} />
             {/* 상세는 목록 안쪽 화면이다. 탭바를 두면 돌아올 자리를 잃는다 */}
             <Route path="/books/:clientUuid" element={<BookDetailPage />} />

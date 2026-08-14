@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { kstDate } from '@daily/shared'
+import { formatMinorUnits, toMinorUnits } from '../../lib/money.ts'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
@@ -10,19 +11,6 @@ import {
   deleteExpense, ensureDefaultCategories, listCategories, listExpensesByDate,
   saveExpense, type ExpenseInput,
 } from './repository.ts'
-
-/** 금액 문자열을 부동소수점을 거치지 않고 최소 단위 정수로 더한다. */
-function toMinorUnits(amount: string): bigint {
-  const [whole = '0', frac = ''] = amount.split('.')
-  return BigInt(whole) * 100n + BigInt(frac.padEnd(2, '0').slice(0, 2))
-}
-
-function formatMinorUnits(total: bigint): string {
-  const negative = total < 0n
-  const abs = negative ? -total : total
-  const won = abs / 100n
-  return `${negative ? '-' : ''}${won.toLocaleString('ko-KR')}원`
-}
 
 export default function ExpensePage() {
   const user = useSession((s) => s.user)

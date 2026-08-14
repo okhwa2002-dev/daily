@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { BODY_PART, INTENSITY, type BodyPart, type Intensity } from '@daily/shared'
-import type { LocalWorkout } from '../../db/index.ts'
-import { BODY_PART_LABEL, INTENSITY_LABEL } from './labels.ts'
+import type { LocalCode, LocalWorkout } from '../../db/index.ts'
 import SetRows, { emptySetRow, toSetRows, toSets, type SetRow } from './SetRows.tsx'
 import type { WorkoutInput } from './repository.ts'
 
@@ -29,13 +27,17 @@ function digitsOnly(value: string): string {
 interface Props {
   occurredOn: string
   recentNames: string[]
+  /** `codes`의 BODY_PART 그룹. 살아있는 코드만 온다 */
+  bodyParts: LocalCode[]
+  /** `codes`의 INTENSITY 그룹. 살아있는 코드만 온다 */
+  intensities: LocalCode[]
   initial?: LocalWorkout
   onSubmit: (input: WorkoutInput) => Promise<void>
   onCancel?: () => void
 }
 
 export default function WorkoutForm({
-  occurredOn, recentNames, initial, onSubmit, onCancel,
+  occurredOn, recentNames, bodyParts, intensities, initial, onSubmit, onCancel,
 }: Props) {
   const [kind, setKindState] = useState<FormKind>(
     initial?.kind === 'CARDIO' ? 'CARDIO' : 'STRENGTH',
@@ -106,10 +108,10 @@ export default function WorkoutForm({
         occurredOn,
         kind,
         name: trimmedName,
-        bodyPart: (bodyPart || null) as BodyPart | null,
+        bodyPart: bodyPart || null,
         sets,
         durationMin: duration,
-        intensity: (intensity || null) as Intensity | null,
+        intensity: intensity || null,
         memo: memo.trim() || null,
       })
       // 수정 모드는 화면이 폼을 닫으므로 비우지 않는다.
@@ -177,8 +179,16 @@ export default function WorkoutForm({
             className="rounded-lg border border-gray-300 px-3 py-2"
           >
             <option value="">선택 안 함</option>
-            {BODY_PART.map((p) => (
-              <option key={p} value={p}>{BODY_PART_LABEL[p]}</option>
+            {/* 관리자가 지운 코드다. bodyParts(살아있는 코드만)에는 없지만 이
+                기록에는 이미 붙어 있으므로, codeLabel이 목록에서 하는
+                폴백(코드값 그대로 표시)과 같은 일을 여기서도 해준다. 이 옵션이
+                없으면 일치하는 <option>이 없어 selectedIndex가 -1이 되고,
+                값은 상태에 남아 있는데도 화면은 빈칸으로 보인다 */}
+            {bodyPart !== '' && !bodyParts.some((p) => p.code === bodyPart) && (
+              <option value={bodyPart}>{bodyPart}</option>
+            )}
+            {bodyParts.map((p) => (
+              <option key={p.code} value={p.code}>{p.name}</option>
             ))}
           </select>
         </label>
@@ -191,8 +201,12 @@ export default function WorkoutForm({
             className="rounded-lg border border-gray-300 px-3 py-2"
           >
             <option value="">선택 안 함</option>
-            {INTENSITY.map((i) => (
-              <option key={i} value={i}>{INTENSITY_LABEL[i]}</option>
+            {/* 부위와 같은 이유의 폴백이다 */}
+            {intensity !== '' && !intensities.some((i) => i.code === intensity) && (
+              <option value={intensity}>{intensity}</option>
+            )}
+            {intensities.map((i) => (
+              <option key={i.code} value={i.code}>{i.name}</option>
             ))}
           </select>
         </label>

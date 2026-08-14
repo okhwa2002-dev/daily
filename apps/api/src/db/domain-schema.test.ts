@@ -128,12 +128,22 @@ describe('workouts', () => {
     })).rejects.toThrow()
   })
 
-  it('정해진 코드값이 아닌 body_part는 거부한다', async () => {
+  /**
+   * 부위·강도에는 CHECK가 없다 — 값 집합이 `codes` 테이블에 있는 런타임
+   * 데이터라 CHECK로 표현할 수 없기 때문이다. 관리자가 코드를 넣으면 배포
+   * 없이 바로 쓸 수 있어야 하는데, CHECK가 남아 있으면 그 INSERT가 500이 되고
+   * 500은 재시도 대상이라 큐가 영원히 막힌다.
+   *
+   * 방어는 서버의 sync 검증으로 옮겼다 (`sync/registry.ts`의 `workouts.validate`).
+   * 모르는 코드가 REJECTED로 돌아가는 것은 `routes/sync.test.ts`가 지킨다.
+   */
+  it('body_part는 DB가 막지 않는다 — 검증은 sync 계층이 한다', async () => {
     const userId = await makeUser()
-    await expect(db.insert(workouts).values({
+    const [row] = await db.insert(workouts).values({
       ...common(userId, UUID(14)),
       occurredOn: TODAY, kind: 'ETC', name: '스트레칭', bodyPart: 'NECK',
-    })).rejects.toThrow()
+    }).returning()
+    expect(row?.bodyPart).toBe('NECK')
   })
 })
 

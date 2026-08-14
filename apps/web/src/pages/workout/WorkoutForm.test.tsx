@@ -1,10 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { LocalWorkout } from '../../db/index.ts'
+import type { LocalCode, LocalWorkout } from '../../db/index.ts'
 import WorkoutForm from './WorkoutForm.tsx'
 
 const TODAY = '2026-08-13'
+
+const code = (groupCode: string, c: string, name: string, sortOrder: number): LocalCode =>
+  ({ groupCode, code: c, name, sortOrder })
+
+const BODY_PARTS: LocalCode[] = [
+  code('BODY_PART', 'CHEST', '가슴', 1),
+  code('BODY_PART', 'LEGS', '하체', 3),
+]
+const INTENSITIES: LocalCode[] = [
+  code('INTENSITY', 'LOW', '가볍게', 1),
+  code('INTENSITY', 'MID', '보통', 2),
+]
 
 function setup(over: Partial<Parameters<typeof WorkoutForm>[0]> = {}) {
   const onSubmit = vi.fn().mockResolvedValue(undefined)
@@ -12,6 +24,8 @@ function setup(over: Partial<Parameters<typeof WorkoutForm>[0]> = {}) {
     <WorkoutForm
       occurredOn={TODAY}
       recentNames={['벤치프레스', '스쿼트']}
+      bodyParts={BODY_PARTS}
+      intensities={INTENSITIES}
       onSubmit={onSubmit}
       {...over}
     />,
@@ -195,5 +209,53 @@ describe('운동 폼', () => {
     expect(screen.getByLabelText('종목')).toHaveValue('스쿼트')
     expect(screen.getByLabelText('1세트 무게(kg)')).toHaveValue('100')
     expect(screen.getByLabelText('메모')).toHaveValue('무거움')
+  })
+
+  // 라벨은 codes 테이블이 갖는다. 코드값을 폼에 박아두면 관리자가 라벨을
+  // 고쳐도 배포 전까지 화면이 안 바뀐다 — 이전의 목적이 사라진다.
+  it('부위·강도 선택지를 공통코드 캐시에서 그린다', () => {
+    setup()
+
+    expect(screen.getByRole('option', { name: '가슴' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '하체' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '보통' })).toBeInTheDocument()
+    // 캐시에 없는 코드는 선택지에 없다.
+    expect(screen.queryByRole('option', { name: '어깨' })).not.toBeInTheDocument()
+  })
+
+  it('캐시에 없는 부위도 고를 수 있게 그려진다', () => {
+    setup({ bodyParts: [...BODY_PARTS, code('BODY_PART', 'NECK', '목', 8)] })
+    expect(screen.getByRole('option', { name: '목' })).toBeInTheDocument()
+  })
+
+  /**
+   * 관리자가 지운 코드다. 살아있는 코드 목록에는 없지만 이 기록에는 이미
+   * 붙어 있다. 폴백 옵션이 없으면 일치하는 `<option>`이 없어 selectedIndex가
+   * -1이 되고, 값은 상태에 남아 있는데도 화면은 빈칸으로 보인다 — 사용자가
+   * 다른 값을 고르는 순간 진짜 유실이 된다. 독서에서 이미 겪은 형태다.
+   */
+  it('지워진 부위 코드는 코드값 그대로 보여준다', () => {
+    const initial: LocalWorkout = {
+      clientUuid: 'x', userId: 1, serverId: 1,
+      occurredOn: TODAY, kind: 'STRENGTH', name: '스쿼트', bodyPart: 'GONE',
+      sets: [{ reps: 5, weightKg: 100 }], durationMin: null, intensity: null,
+      memo: null, updatedAt: '2026-08-13 12:00:00.000', deletedAt: null,
+    }
+    setup({ initial })
+
+    expect(screen.getByLabelText('부위')).toHaveValue('GONE')
+    expect(screen.getByRole('option', { name: 'GONE' })).toBeInTheDocument()
+  })
+
+  it('지워진 강도 코드도 코드값 그대로 보여준다', () => {
+    const initial: LocalWorkout = {
+      clientUuid: 'x', userId: 1, serverId: 1,
+      occurredOn: TODAY, kind: 'CARDIO', name: '러닝', bodyPart: null,
+      sets: null, durationMin: 30, intensity: 'GONE',
+      memo: null, updatedAt: '2026-08-13 12:00:00.000', deletedAt: null,
+    }
+    setup({ initial })
+
+    expect(screen.getByLabelText('강도')).toHaveValue('GONE')
   })
 })

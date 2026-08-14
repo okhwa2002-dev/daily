@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
-  BODY_PART, BOOK_STATUS, EXPENSE_KIND, INTENSITY,
-  OUTBOX_OP, SYNC_RESULT, type SyncResult,
+  BOOK_STATUS, EXPENSE_KIND, OUTBOX_OP, SYNC_RESULT, type SyncResult,
 } from './codes.ts'
 import { workoutSetsSchema } from './workout.ts'
 
@@ -16,7 +15,7 @@ import { workoutSetsSchema } from './workout.ts'
  * 테이블의 행을 받으면 `APPLIERS[row.table]`이 undefined라 동기화 루프가
  * 통째로 죽는다. 사용자에게는 "기록이 안 올라감"으로만 보인다.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /** 한 번에 밀어넣을 수 있는 변경 수. 상한이 없으면 요청 하나가 DB를 오래 잡는다. */
 export const PUSH_MAX_CHANGES = 500
@@ -100,8 +99,15 @@ const workoutBaseShape = {
   occurredOn: occurredOnSchema,
   /** 종목은 자유 입력이다. 마스터 테이블을 두지 않는다 */
   name: z.string().trim().min(1).max(100),
-  bodyPart: z.enum(BODY_PART).nullable().default(null),
-  intensity: z.enum(INTENSITY).nullable().default(null),
+  /**
+   * 부위·강도 코드값 (`codes`의 `BODY_PART`·`INTENSITY` 그룹).
+   *
+   * 값 집합이 DB에 있으므로 `z.enum`으로 막을 수 없다. 형식만 보고, 실제
+   * 코드인지는 서버가 `codes`와 대조해 판정한다 — 모르면 REJECTED다.
+   * 장르(`genre`)와 같은 규칙이다.
+   */
+  bodyPart: z.string().min(1).nullable().default(null),
+  intensity: z.string().min(1).nullable().default(null),
   memo: z.string().max(500).nullable().default(null),
 }
 

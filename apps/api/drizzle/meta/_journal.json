@@ -43,6 +43,13 @@
       "when": 1786517517720,
       "tag": "0005_bumpy_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786609502028,
+      "tag": "0006_workout_code_groups",
+      "breakpoints": true
     }
   ]
 }

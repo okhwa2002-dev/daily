@@ -34,17 +34,21 @@ export default function BackHeader({ title }: Props) {
   // 남긴 채 justify-center를 주면 제목이 버튼 폭만큼 오른쪽으로 밀려, 화면
   // 기준으로는 가운데가 아니게 된다. 높이를 고정하는 것은 아이콘 크기를 바꿔도
   // 세 화면의 헤더 높이가 서로 달라지지 않게 하기 위해서다.
+  //
+  // 아이콘과 제목은 같은 text-2xl로 맞춘 것이다. `‹` 글리프는 em 박스 안에서
+  // 작게 그려져 같은 폰트 크기에서도 글자보다 작아 보이는데, 그걸 보정하려고
+  // 아이콘만 키우지 않는다 — 크기를 맞추는 쪽이 의도다.
   return (
     <header className="relative flex h-11 items-center justify-center">
       <button
         type="button"
         onClick={goBack}
         aria-label="뒤로"
-        className="absolute left-0 px-2 text-3xl leading-none text-gray-500"
+        className="absolute left-0 px-2 text-2xl leading-none text-gray-500"
       >
         ‹
       </button>
-      <h1 className="text-xl font-semibold">{title}</h1>
+      <h1 className="text-2xl font-semibold">{title}</h1>
     </header>
   )
 }

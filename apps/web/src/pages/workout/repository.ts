@@ -1,5 +1,5 @@
 import type { WorkoutKind, WorkoutSet } from '@daily/shared'
-import { db, type LocalWorkout } from '../../db/index.ts'
+import { db, live, type LocalWorkout } from '../../db/index.ts'
 import { enqueue, localNow } from '../../sync/outbox.ts'
 
 /**
@@ -31,11 +31,6 @@ const DATE_MAX = '9999-12-31'
 
 function newUuid(): string {
   return crypto.randomUUID()
-}
-
-/** 살아있는 레코드만 남긴다. deletedAt은 인덱스에 없으므로 여기서 거른다. */
-function live<T extends { deletedAt: string | null }>(rows: T[]): T[] {
-  return rows.filter((row) => row.deletedAt === null)
 }
 
 /** 서버가 받는 필드만 담는다. 공통 컬럼은 서버가 채운다. */

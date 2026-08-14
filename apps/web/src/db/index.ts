@@ -160,6 +160,17 @@ class DailyDb extends Dexie {
 
 export const db = new DailyDb()
 
+/**
+ * 살아있는 레코드만 남긴다.
+ *
+ * `deletedAt`은 인덱스에 없다 — IndexedDB가 null을 키로 쓰지 못해 인덱스에
+ * 넣으면 살아있는 레코드가 통째로 빠진다. 그래서 걸러내는 일이 항상 JS 쪽에
+ * 남고, 도메인마다 같은 세 줄이 필요하다.
+ */
+export function live<T extends { deletedAt: string | null }>(rows: T[]): T[] {
+  return rows.filter((row) => row.deletedAt === null)
+}
+
 /** 동기화 커서와 사용자 식별자를 담는 meta 키. */
 export const META_KEY = {
   lastPulledSyncedAt: 'lastPulledSyncedAt',

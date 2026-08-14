@@ -32,6 +32,7 @@
 독서: [2026-08-11-book-tracking-design.md](docs/superpowers/specs/2026-08-11-book-tracking-design.md)
 운동: [2026-08-13-workout-tracking-design.md](docs/superpowers/specs/2026-08-13-workout-tracking-design.md)
 현황: [2026-08-14-daily-calendar-design.md](docs/superpowers/specs/2026-08-14-daily-calendar-design.md)
+마이 탭: [2026-08-14-my-tab-layout-design.md](docs/superpowers/specs/2026-08-14-my-tab-layout-design.md)
 
 | 항목 | 상태 |
 |---|---|

@@ -3,10 +3,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router'
 import { formatMinorUnits, toMinorUnits } from '../../lib/money.ts'
 import { dateParam } from '../../lib/dateParam.ts'
+import BackHeader from '../../components/BackHeader.tsx'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
-import { logoutSafely } from '../../sync/logout.ts'
 import ExpenseForm from './ExpenseForm.tsx'
 import {
   deleteExpense, ensureDefaultCategories, listCategories, listExpensesByDate,
@@ -15,9 +15,7 @@ import {
 
 export default function ExpensePage() {
   const user = useSession((s) => s.user)
-  const logout = useSession((s) => s.logout)
   const syncSoon = useSync((s) => s.syncSoon)
-  const stopSync = useSync((s) => s.stop)
   const initialSyncDone = useSync((s) => s.initialSyncDone)
 
   const userId = user?.id ?? 0
@@ -59,26 +57,9 @@ export default function ExpensePage() {
     syncSoon(userId)
   }
 
-  async function handleLogout() {
-    const outcome = await logoutSafely({
-      userId,
-      logout,
-      confirmDiscard: (pending) => window.confirm(
-        `동기화되지 않은 기록 ${pending}건이 있습니다.\n`
-        + '지금 로그아웃하면 이 기록은 사라집니다. 계속할까요?',
-      ),
-    })
-    if (outcome === 'DONE') stopSync()
-  }
-
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4 pb-20">
-      <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">지출</h1>
-        <button type="button" onClick={() => void handleLogout()} className="text-sm underline">
-          로그아웃
-        </button>
-      </header>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4">
+      <BackHeader title="지출" />
 
       <SyncStatus />
 

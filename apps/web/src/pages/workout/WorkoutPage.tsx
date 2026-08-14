@@ -6,6 +6,7 @@ import { codeLabel } from '../../codes/label.ts'
 import { listCodes } from '../../codes/repository.ts'
 import { dateParam } from '../../lib/dateParam.ts'
 import { formatCardio, formatSets } from '../../lib/workoutFormat.ts'
+import BackHeader from '../../components/BackHeader.tsx'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import type { LocalWorkout } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
@@ -76,10 +77,8 @@ export default function WorkoutPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4 pb-20">
-      <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">운동</h1>
-      </header>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4">
+      <BackHeader title="운동" />
 
       <SyncStatus />
 

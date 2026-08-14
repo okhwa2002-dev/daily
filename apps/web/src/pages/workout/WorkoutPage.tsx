@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CODE_GROUP, kstDate } from '@daily/shared'
+import { useSearchParams } from 'react-router'
+import { CODE_GROUP } from '@daily/shared'
 import { codeLabel } from '../../codes/label.ts'
 import { listCodes } from '../../codes/repository.ts'
+import { dateParam } from '../../lib/dateParam.ts'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import type { LocalCode, LocalWorkout } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
@@ -37,7 +39,11 @@ export default function WorkoutPage() {
   const initialSyncDone = useSync((s) => s.initialSyncDone)
 
   const userId = user?.id ?? 0
-  const [occurredOn, setOccurredOn] = useState(() => kstDate(new Date()))
+  // 캘린더에서 날짜를 들고 넘어올 수 있다. 최초 1회만 읽고 이후에는 화면
+  // 안의 날짜 선택기가 주인이다 — 매 렌더 동기화하면 사용자가 고른 날짜를
+  // URL이 도로 덮는다.
+  const [params] = useSearchParams()
+  const [occurredOn, setOccurredOn] = useState(() => dateParam(params.get('date')))
   const [editing, setEditing] = useState<LocalWorkout | null>(null)
 
   // 화면은 로컬 Dexie만 읽는다. useLiveQuery가 로컬 변경과 pull 결과를
@@ -107,6 +113,7 @@ export default function WorkoutPage() {
           type="date"
           value={occurredOn}
           onChange={(e) => handleDateChange(e.target.value)}
+          aria-label="날짜"
           className="rounded-lg border border-gray-300 px-3 py-2"
         />
       </label>

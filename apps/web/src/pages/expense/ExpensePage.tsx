@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { kstDate } from '@daily/shared'
+import { useSearchParams } from 'react-router'
 import { formatMinorUnits, toMinorUnits } from '../../lib/money.ts'
+import { dateParam } from '../../lib/dateParam.ts'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
@@ -20,7 +21,11 @@ export default function ExpensePage() {
   const initialSyncDone = useSync((s) => s.initialSyncDone)
 
   const userId = user?.id ?? 0
-  const [occurredOn, setOccurredOn] = useState(() => kstDate(new Date()))
+  // 캘린더에서 날짜를 들고 넘어올 수 있다. 최초 1회만 읽고 이후에는 화면
+  // 안의 날짜 선택기가 주인이다 — 매 렌더 동기화하면 사용자가 고른 날짜를
+  // URL이 도로 덮는다.
+  const [params] = useSearchParams()
+  const [occurredOn, setOccurredOn] = useState(() => dateParam(params.get('date')))
 
   // 화면은 로컬 Dexie만 읽는다. useLiveQuery가 로컬 변경과 pull 결과를
   // 모두 자동으로 반영하므로, 저장 후 목록을 다시 불러오는 코드가 필요 없다.
@@ -90,6 +95,7 @@ export default function ExpensePage() {
           type="date"
           value={occurredOn}
           onChange={(e) => setOccurredOn(e.target.value)}
+          aria-label="날짜"
           className="rounded-lg border border-gray-300 px-3 py-2"
         />
       </label>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { kstDate } from '@daily/shared'
@@ -107,7 +107,11 @@ describe('마이 화면', () => {
     // 생성 순서를 되살릴 필드가 없어(생성 시각 없음, updatedAt은 네 레코드가
     // 동일) 어떤 이름이 잘리는지는 실행마다 달라진다. 그래서 "몇 번째 항목이
     // 남는지"가 아니라 "네 줄 중 세 줄까지만 남는지"를 검증한다.
-    expect(await screen.findAllByRole('listitem')).toHaveLength(3)
+    // 운동 카드로 범위를 좁힌다 — 문서 전체에서 세면 다른 카드가 나중에
+    // listitem을 갖게 될 때 이 값이 조용히 부풀어도 이 테스트는 그대로
+    // 통과해버린다.
+    const workoutCard = screen.getByRole('link', { name: /운동/ })
+    expect(await within(workoutCard).findAllByRole('listitem')).toHaveLength(3)
   })
 
   // 카드가 사라지면 기록하러 들어갈 입구도 같이 사라진다.

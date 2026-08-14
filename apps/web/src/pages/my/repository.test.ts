@@ -77,6 +77,32 @@ describe('loadToday', () => {
     expect(records.readingBooks[0]?.title).toBe('오래된 책')
   })
 
+  // clientUuid를 updatedAt과 반대로 정렬되게 골라서, 정렬이 안 되어 있으면
+  // (Dexie의 기본 순서인 clientUuid 오름차순을 그대로 반환하면) 실패하게 한다.
+  it('읽는 중인 책은 최근에 손댄 순서로 정렬한다', async () => {
+    await book({
+      clientUuid: 'aaaaaaaa-0000-0000-0000-000000000000',
+      title: '오래전에 손댄 책',
+      updatedAt: '2026-08-01 00:00:00.000',
+    })
+    await book({
+      clientUuid: 'bbbbbbbb-0000-0000-0000-000000000000',
+      title: '중간에 손댄 책',
+      updatedAt: '2026-08-10 00:00:00.000',
+    })
+    await book({
+      clientUuid: 'cccccccc-0000-0000-0000-000000000000',
+      title: '방금 손댄 책',
+      updatedAt: '2026-08-14 00:00:00.000',
+    })
+
+    const records = await loadToday(USER, TODAY)
+
+    expect(records.readingBooks.map((b) => b.title)).toEqual([
+      '방금 손댄 책', '중간에 손댄 책', '오래전에 손댄 책',
+    ])
+  })
+
   it('READING이 아닌 책은 뺀다', async () => {
     await book({ title: '읽는 중', status: 'READING' })
     await book({ title: '다 읽음', status: 'DONE' })

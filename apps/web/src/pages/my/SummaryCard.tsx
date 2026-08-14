@@ -22,7 +22,11 @@ interface Props {
 
 export default function SummaryCard({ title, summary, to, lines, empty }: Props) {
   return (
-    <Link to={to} className="flex flex-col gap-1 rounded-lg border border-gray-200 px-4 py-3">
+    <Link
+      to={to}
+      aria-label={`${title} 자세히 보기`}
+      className="flex flex-col gap-1 rounded-lg border border-gray-200 px-4 py-3"
+    >
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-base font-medium text-gray-900">{title}</h2>
         <span className="flex items-baseline gap-1 text-sm text-gray-600">
@@ -35,8 +39,10 @@ export default function SummaryCard({ title, summary, to, lines, empty }: Props)
         <p className="text-sm text-gray-400">{empty}</p>
       ) : (
         <ul className="flex flex-col gap-0.5">
-          {lines.map((line) => (
-            <li key={line} className="truncate text-sm text-gray-600">{line}</li>
+          {/* line 값만으로는 두 지출이 같은 금액이거나 같은 운동 이름이면
+              key가 겹친다 — 인덱스를 섞어 이 화면 안에서는 항상 고유하게 만든다. */}
+          {lines.map((line, i) => (
+            <li key={`${i}-${line}`} className="truncate text-sm text-gray-600">{line}</li>
           ))}
         </ul>
       )}

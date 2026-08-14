@@ -36,9 +36,15 @@ export async function loadToday(userId: number, date: string): Promise<TodayReco
     db.books.where('[userId+status]').equals([userId, 'READING']).toArray(),
   ])
 
+  // `/books`(pages/book/repository.ts의 listBooks)가 같은 READING 집합을
+  // updatedAt 내림차순으로 보여준다. 여기서 정렬하지 않으면 카드가 고른
+  // 세 권과 탭을 눌러 들어간 화면의 상위 세 권이 서로 달라진다.
+  const sortedReadingBooks = live(readingBooks)
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+
   return {
     expenses: live(expenses),
     workouts: live(workouts),
-    readingBooks: live(readingBooks),
+    readingBooks: sortedReadingBooks,
   }
 }

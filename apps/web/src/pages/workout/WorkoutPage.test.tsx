@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { kstDate } from '@daily/shared'
 import { db } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
@@ -46,7 +47,7 @@ describe('운동 화면', () => {
     await put({ name: '벤치프레스' })
     await put({ occurredOn: '2026-01-01', name: '작년운동' })
 
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     expect(await screen.findByText('벤치프레스')).toBeInTheDocument()
     expect(screen.queryByText('작년운동')).not.toBeInTheDocument()
@@ -55,7 +56,7 @@ describe('운동 화면', () => {
   it('근력은 세트를 요약해 보여준다', async () => {
     await put({ sets: [{ reps: 10, weightKg: 60 }, { reps: 12, weightKg: null }] })
 
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     // 맨몸 세트는 무게 없이 횟수만 보인다.
     expect(await screen.findByText('60kg×10, ×12')).toBeInTheDocument()
@@ -67,13 +68,13 @@ describe('운동 화면', () => {
       durationMin: 30, intensity: 'MID',
     })
 
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     expect(await screen.findByText('30분 · 보통')).toBeInTheDocument()
   })
 
   it('기록이 없으면 안내를 보여준다', async () => {
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
     expect(await screen.findByText('기록이 없습니다.')).toBeInTheDocument()
   })
 
@@ -83,7 +84,7 @@ describe('운동 화면', () => {
    */
   it('입력한 세트가 아웃박스 페이로드까지 도달한다', async () => {
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     await user.type(await screen.findByLabelText('종목'), '데드리프트')
     await user.type(screen.getByLabelText('1세트 무게(kg)'), '100')
@@ -107,7 +108,7 @@ describe('운동 화면', () => {
     await put({ name: '벤치프레스', serverId: 7 })
 
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: '벤치프레스 삭제' }))
 
@@ -122,7 +123,7 @@ describe('운동 화면', () => {
     await put({ name: '벤치프레스' })
 
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: '벤치프레스 수정' }))
     const nameInput = screen.getByLabelText('종목')
@@ -140,7 +141,7 @@ describe('운동 화면', () => {
     await put({ occurredOn: '2026-08-01', name: '지난운동' })
 
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     await user.clear(screen.getByLabelText('날짜'))
     await user.type(screen.getByLabelText('날짜'), '2026-08-01')
@@ -154,7 +155,7 @@ describe('운동 화면', () => {
     await put({ occurredOn: TODAY, name: '벤치프레스' })
 
     const user = userEvent.setup()
-    render(<WorkoutPage />)
+    render(<MemoryRouter><WorkoutPage /></MemoryRouter>)
 
     await user.click(await screen.findByRole('button', { name: '벤치프레스 수정' }))
     await user.clear(screen.getByLabelText('날짜'))
@@ -166,5 +167,27 @@ describe('운동 화면', () => {
     const rows = await db.workouts.toArray()
     expect(rows).toHaveLength(1)
     expect(rows[0]?.occurredOn).toBe(TODAY)
+  })
+
+  it('쿼리스트링의 날짜로 시작한다', async () => {
+    render(
+      <MemoryRouter initialEntries={['/workouts?date=2026-08-14']}>
+        <WorkoutPage />
+      </MemoryRouter>,
+    )
+
+    const input = await screen.findByLabelText('날짜')
+    expect(input).toHaveValue('2026-08-14')
+  })
+
+  it('쿼리스트링이 망가졌으면 오늘로 시작한다', async () => {
+    render(
+      <MemoryRouter initialEntries={['/workouts?date=2026-02-30']}>
+        <WorkoutPage />
+      </MemoryRouter>,
+    )
+
+    const input = await screen.findByLabelText('날짜')
+    expect(input).toHaveValue(kstDate(new Date()))
   })
 })

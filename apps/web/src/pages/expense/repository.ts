@@ -1,5 +1,5 @@
 import type { ExpenseKind } from '@daily/shared'
-import { db, type LocalExpense, type LocalExpenseCategory } from '../../db/index.ts'
+import { db, live, type LocalExpense, type LocalExpenseCategory } from '../../db/index.ts'
 import { enqueue, localNow } from '../../sync/outbox.ts'
 
 /**
@@ -20,11 +20,6 @@ export interface ExpenseInput {
 
 function newUuid(): string {
   return crypto.randomUUID()
-}
-
-/** 살아있는 레코드만 남긴다. deletedAt은 인덱스에 없으므로 여기서 거른다. */
-function live<T extends { deletedAt: string | null }>(rows: T[]): T[] {
-  return rows.filter((row) => row.deletedAt === null)
 }
 
 // ---------------------------------------------------------------------------

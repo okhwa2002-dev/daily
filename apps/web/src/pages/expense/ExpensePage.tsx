@@ -1,38 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { kstDate } from '@daily/shared'
+import { useSearchParams } from 'react-router'
+import { formatMinorUnits, toMinorUnits } from '../../lib/money.ts'
+import { dateParam } from '../../lib/dateParam.ts'
+import BackHeader from '../../components/BackHeader.tsx'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import { useSession } from '../../store/session.ts'
 import { useSync } from '../../store/sync.ts'
-import { logoutSafely } from '../../sync/logout.ts'
 import ExpenseForm from './ExpenseForm.tsx'
 import {
   deleteExpense, ensureDefaultCategories, listCategories, listExpensesByDate,
   saveExpense, type ExpenseInput,
 } from './repository.ts'
 
-/** 금액 문자열을 부동소수점을 거치지 않고 최소 단위 정수로 더한다. */
-function toMinorUnits(amount: string): bigint {
-  const [whole = '0', frac = ''] = amount.split('.')
-  return BigInt(whole) * 100n + BigInt(frac.padEnd(2, '0').slice(0, 2))
-}
-
-function formatMinorUnits(total: bigint): string {
-  const negative = total < 0n
-  const abs = negative ? -total : total
-  const won = abs / 100n
-  return `${negative ? '-' : ''}${won.toLocaleString('ko-KR')}원`
-}
-
 export default function ExpensePage() {
   const user = useSession((s) => s.user)
-  const logout = useSession((s) => s.logout)
   const syncSoon = useSync((s) => s.syncSoon)
-  const stopSync = useSync((s) => s.stop)
   const initialSyncDone = useSync((s) => s.initialSyncDone)
 
   const userId = user?.id ?? 0
-  const [occurredOn, setOccurredOn] = useState(() => kstDate(new Date()))
+  // 캘린더에서 날짜를 들고 넘어올 수 있다. 최초 1회만 읽고 이후에는 화면
+  // 안의 날짜 선택기가 주인이다 — 매 렌더 동기화하면 사용자가 고른 날짜를
+  // URL이 도로 덮는다.
+  const [params] = useSearchParams()
+  const [occurredOn, setOccurredOn] = useState(() => dateParam(params.get('date')))
 
   // 화면은 로컬 Dexie만 읽는다. useLiveQuery가 로컬 변경과 pull 결과를
   // 모두 자동으로 반영하므로, 저장 후 목록을 다시 불러오는 코드가 필요 없다.
@@ -66,26 +57,9 @@ export default function ExpensePage() {
     syncSoon(userId)
   }
 
-  async function handleLogout() {
-    const outcome = await logoutSafely({
-      userId,
-      logout,
-      confirmDiscard: (pending) => window.confirm(
-        `동기화되지 않은 기록 ${pending}건이 있습니다.\n`
-        + '지금 로그아웃하면 이 기록은 사라집니다. 계속할까요?',
-      ),
-    })
-    if (outcome === 'DONE') stopSync()
-  }
-
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4 pb-20">
-      <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">지출</h1>
-        <button type="button" onClick={() => void handleLogout()} className="text-sm underline">
-          로그아웃
-        </button>
-      </header>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4">
+      <BackHeader title="지출" />
 
       <SyncStatus />
 
@@ -102,6 +76,7 @@ export default function ExpensePage() {
           type="date"
           value={occurredOn}
           onChange={(e) => setOccurredOn(e.target.value)}
+          aria-label="날짜"
           className="rounded-lg border border-gray-300 px-3 py-2"
         />
       </label>

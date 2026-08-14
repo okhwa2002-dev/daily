@@ -26,11 +26,13 @@
 
 ## 현재 상태
 
-설계 확정. 1단계(기반·인증) 완료. 2단계는 동기화 엔진 + 지출 + 독서 + 운동까지 완료, 일기·식사 미착수.
+설계 확정. 1단계(기반·인증) 완료. 2단계는 동기화 엔진 + 지출 + 독서 + 운동 + 일자별 현황까지 완료, 일기·식사 미착수.
 
 설계 문서: [2026-08-06-daily-tracker-design.md](docs/superpowers/specs/2026-08-06-daily-tracker-design.md)
 독서: [2026-08-11-book-tracking-design.md](docs/superpowers/specs/2026-08-11-book-tracking-design.md)
 운동: [2026-08-13-workout-tracking-design.md](docs/superpowers/specs/2026-08-13-workout-tracking-design.md)
+현황: [2026-08-14-daily-calendar-design.md](docs/superpowers/specs/2026-08-14-daily-calendar-design.md)
+마이 탭: [2026-08-14-my-tab-layout-design.md](docs/superpowers/specs/2026-08-14-my-tab-layout-design.md)
 
 | 항목 | 상태 |
 |---|---|
@@ -42,6 +44,7 @@
 | 지출 기록 화면 | 완료 |
 | 독서 기록 화면 (책 목록 + 감상평, 부모-자식 동기화) | 완료 |
 | 운동 기록 화면 (근력 세트 JSONB) | 완료 |
+| 일자별 기록 현황 (캘린더 홈) | 완료 |
 | 일기·식사 | 미착수 |
 | 통계 화면 | 미착수 |
 | 계정 복구 (비밀번호 재설정·이메일 인증·탈퇴) | 미착수 (공개 배포 전 필수) |

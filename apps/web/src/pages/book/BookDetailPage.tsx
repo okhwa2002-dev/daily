@@ -82,7 +82,10 @@ export default function BookDetailPage() {
       <header className="flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => void navigate('/books')}
+          // replace가 아니면 `/books`가 이 상세 페이지 위에 새로 쌓인다. `/books`도
+          // BackHeader로 뒤로가기를 갖게 되면서, 그 뒤로가기가 여기(상세)로 다시
+          // 돌아와 ← 목록 ↔ ‹ 뒤로가 무한히 핑퐁한다.
+          onClick={() => void navigate('/books', { replace: true })}
           className="text-sm underline"
         >
           ← 목록

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from './index.ts'
+import { db, live } from './index.ts'
 
 beforeEach(async () => {
   await db.outbox.clear()
@@ -73,5 +73,20 @@ describe('version 3 — 독서', () => {
     })
     const rows = await db.bookNotes.where('bookClientUuid').equals(bookUuid).toArray()
     expect(rows).toHaveLength(1)
+  })
+})
+
+describe('live', () => {
+  it('툼스톤을 걷어낸다', () => {
+    const rows = [
+      { clientUuid: 'a', deletedAt: null },
+      { clientUuid: 'b', deletedAt: '2026-08-14 10:00:00.000' },
+      { clientUuid: 'c', deletedAt: null },
+    ]
+    expect(live(rows).map((r) => r.clientUuid)).toEqual(['a', 'c'])
+  })
+
+  it('빈 배열을 그대로 돌려준다', () => {
+    expect(live([])).toEqual([])
   })
 })

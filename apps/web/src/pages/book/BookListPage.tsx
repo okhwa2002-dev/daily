@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router'
 import { CODE_GROUP, type BookStatus } from '@daily/shared'
+import BackHeader from '../../components/BackHeader.tsx'
 import SyncStatus from '../../components/SyncStatus.tsx'
 import { codeLabel } from '../../codes/label.ts'
 import { listCodes } from '../../codes/repository.ts'
@@ -42,10 +43,8 @@ export default function BookListPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4 pb-20">
-      <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">독서</h1>
-      </header>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-4">
+      <BackHeader title="독서" />
 
       <SyncStatus />
 

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { kstDate } from '@daily/shared'
 import { db } from '../../db/index.ts'
 import { useSession } from '../../store/session.ts'
@@ -43,7 +44,7 @@ async function categoriesReady() {
 
 describe('지출 화면', () => {
   it('기본 카테고리를 만들어 선택지로 보여준다', async () => {
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
 
     await waitFor(async () => {
       expect(await db.expenseCategories.count()).toBe(5)
@@ -53,7 +54,7 @@ describe('지출 화면', () => {
   })
 
   it('StrictMode에서 이중 마운트해도 카테고리가 한 벌만 생긴다', async () => {
-    render(<StrictMode><ExpensePage /></StrictMode>)
+    render(<MemoryRouter><StrictMode><ExpensePage /></StrictMode></MemoryRouter>)
 
     await waitFor(async () => {
       expect(await db.expenseCategories.count()).toBe(DEFAULT_CATEGORY_NAMES.length)
@@ -66,7 +67,7 @@ describe('지출 화면', () => {
     // 새 기기에서 로컬은 비어 있다. pull 전에 만들면 서버에 이미 있는 같은
     // 이름이 다른 UUID로 내려와 목록이 두 벌이 된다.
     useSync.setState({ initialSyncDone: false })
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
 
     await screen.findByLabelText('금액')
     expect(await db.expenseCategories.count()).toBe(0)
@@ -77,7 +78,7 @@ describe('지출 화면', () => {
 
   it('입력한 지출이 목록과 합계에 반영된다', async () => {
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), '12000')
@@ -92,7 +93,7 @@ describe('지출 화면', () => {
 
   it('수입은 합계를 더한다', async () => {
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.click(screen.getByRole('button', { name: '수입' }))
@@ -104,7 +105,7 @@ describe('지출 화면', () => {
 
   it('금액에 숫자가 아닌 문자는 입력되지 않는다', async () => {
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), 'a1b2!')
@@ -115,7 +116,7 @@ describe('지출 화면', () => {
   it('금액에 소수점은 입력되지 않는다', async () => {
     // 원 단위라 소수점을 쓰지 않는다. 서버·DB는 계속 받지만 화면에서 막는다.
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), '1000.50')
@@ -126,7 +127,7 @@ describe('지출 화면', () => {
   it('붙여넣기도 같은 규칙을 탄다', async () => {
     // 타이핑만 막으면 붙여넣기로 그대로 들어온다.
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.click(screen.getByLabelText('금액'))
@@ -138,7 +139,7 @@ describe('지출 화면', () => {
   it('금액은 10자리를 넘길 수 없다', async () => {
     // shared의 amountSchema가 \d{1,10}이다. 넘치면 제출 시점에야 거절당한다.
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), '123456789012')
@@ -147,7 +148,7 @@ describe('지출 화면', () => {
   })
 
   it('폼이 직접 제출돼도 형식 검사가 막는다', async () => {
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     // 입력 필터와 required가 정상 경로를 먼저 막으므로 이 검사는 UI로 도달하지
@@ -161,7 +162,7 @@ describe('지출 화면', () => {
 
   it('삭제하면 목록에서 사라지되 툼스톤은 남는다', async () => {
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), '1000')
@@ -179,7 +180,7 @@ describe('지출 화면', () => {
 
   it('미동기화 건수를 보여준다', async () => {
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     await user.type(screen.getByLabelText('금액'), '1000')
@@ -191,7 +192,7 @@ describe('지출 화면', () => {
 
   it('초기 동기화가 끝나기 전에는 불러오는 중임을 알린다', async () => {
     useSync.setState({ initialSyncDone: false })
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     expect(screen.getByText('기록을 불러오는 중입니다…')).toBeInTheDocument()
   })
 
@@ -204,7 +205,7 @@ describe('지출 화면', () => {
       updatedAt: '2020-01-01 00:00:00.000', deletedAt: null,
     })
     const user = userEvent.setup()
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     await categoriesReady()
 
     expect(screen.queryByText('지난 기록')).not.toBeInTheDocument()
@@ -216,8 +217,30 @@ describe('지출 화면', () => {
   })
 
   it('오늘 날짜로 시작한다', async () => {
-    render(<ExpensePage />)
+    render(<MemoryRouter><ExpensePage /></MemoryRouter>)
     expect(screen.getByLabelText('날짜')).toHaveValue(TODAY)
     await categoriesReady()
+  })
+
+  it('쿼리스트링의 날짜로 시작한다', async () => {
+    render(
+      <MemoryRouter initialEntries={['/expenses?date=2026-08-14']}>
+        <ExpensePage />
+      </MemoryRouter>,
+    )
+
+    const input = await screen.findByLabelText('날짜')
+    expect(input).toHaveValue('2026-08-14')
+  })
+
+  it('쿼리스트링이 망가졌으면 오늘로 시작한다', async () => {
+    render(
+      <MemoryRouter initialEntries={['/expenses?date=2026-02-30']}>
+        <ExpensePage />
+      </MemoryRouter>,
+    )
+
+    const input = await screen.findByLabelText('날짜')
+    expect(input).toHaveValue(kstDate(new Date()))
   })
 })
